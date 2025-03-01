@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8">
+    <title>Crawled Articles Statistics</title>
+    <!-- Include Chart.js via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      h1, h2 {
+        text-align: center;
+      }
+      .chart-container {
+        width: 80%;
+        margin: 30px auto;
+      }
+      .table-container {
+        width: 80%;
+        margin: 30px auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th, td {
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+        text-align: left;
+      }
+      th {
+        background-color: #f2f2f2;
+      }
+      .positive {
+        color: green;
+      }
+      .negative {
+        color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Crawled Articles Statistics</h1>
+    <div class="chart-container">
+      <canvas id="articlesChart"></canvas>
+    </div>
+    <div class="table-container">
+      <h2>Article Metrics</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Count</th>
+          </tr>
+        </thead>
+        <tbody id="statsTable">
+          <!-- Table rows will be injected by JavaScript -->
+        </tbody>
+      </table>
+    </div>
+    <script>
+      let chart; // Global Chart.js instance
+
+      // Initialize an empty chart
+      function initChart() {
+        const ctx = document.getElementById('articlesChart').getContext('2d');
+        chart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: [
+              'Total Articles', 
+              'With Alternate URLs', 
+              'Without Alternate URLs', 
+              'With Keywords', 
+              'Without Keywords', 
+              'With Word Count', 
+              'Without Word Count'
+            ],
+            datasets: [{
+              label: 'Count',
+              data: [0, 0, 0, 0, 0, 0, 0],
+              backgroundColor: [
+                'rgba(75, 192, 192, 0.6)',
+                'rgba(75, 192, 192, 0.6)',
+                'rgba(255, 99, 132, 0.6)',
+                'rgba(75, 192, 192, 0.6)',
+                'rgba(255, 99, 132, 0.6)',
+                'rgba(75, 192, 192, 0.6)',
+                'rgba(255, 99, 132, 0.6)'
+              ],
+              borderColor: [
+                'rgba(75, 192, 192, 1)',
+                'rgba(75, 192, 192, 1)',
+                'rgba(255, 99, 132, 1)',
+                'rgba(75, 192, 192, 1)',
+                'rgba(255, 99, 132, 1)',
+                'rgba(75, 192, 192, 1)',
+                'rgba(255, 99, 132, 1)'
+              ],
+              borderWidth: 1
+            }]
+          },
+          options: {
+            scales: { y: { beginAtZero: true } }
+          }
+        });
+      }
+
+      // Update chart data with new stats
+      function updateChart(data) {
+        chart.data.datasets[0].data = [
+          data.total,
+          data.withAlternate,
+          data.withoutAlternate,
+          data.withKeywords,
+          data.withoutKeywords,
+          data.withWordCount,
+          data.withoutWordCount
+        ];
+        chart.update();
+      }
+
+      // Update statistics table with new data
+      function updateTable(data) {
+        const stats = [
+          { feature: 'Total Articles', count: data.total },
+          { feature: 'With Alternate URLs', count: data.withAlternate },
+          { feature: 'Without Alternate URLs', count: data.withoutAlternate },
+          { feature: 'With Keywords', count: data.withKeywords },
+          { feature: 'Without Keywords', count: data.withoutKeywords },
+          { feature: 'With Word Count', count: data.withWordCount },
+          { feature: 'Without Word Count', count: data.withoutWordCount }
+        ];
+        const statsTable = document.getElementById('statsTable');
+        statsTable.innerHTML = ''; // Clear current rows
+        stats.forEach(item => {
+          const row = document.createElement('tr');
+          const featureCell = document.createElement('td');
+          featureCell.textContent = item.feature;
+          row.appendChild(featureCell);
+          const countCell = document.createElement('td');
+          countCell.textContent = item.count;
+          countCell.className = item.count >= 100 ? 'positive' : 'negative';
+          row.appendChild(countCell);
+          statsTable.appendChild(row);
+        });
+      }
+
+      // Fetch live statistics from your backend endpoint
+      async function fetchStatistics() {
+        try {
+          const response = await fetch('/api/stats');
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          const data = await response.json();
+          updateChart(data);
+          updateTable(data);
+        } catch (error) {
+          console.error('Fehler beim Abrufen der Daten:', error);
+        }
+      }
+
+      // Periodically update the statistics - e.g., every 60 seconds.
+      function startAutoUpdate(interval = 60000) {
+        fetchStatistics();
+        setInterval(fetchStatistics, interval);
+      }
+
+      // Initial setup
+      initChart();
+      startAutoUpdate();
+    </script>
+  </body>
+</html>
