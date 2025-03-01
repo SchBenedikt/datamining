@@ -1,7 +1,12 @@
+import os
+from dotenv import load_dotenv
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import os
+
+# Load environment variables from the .env file located in the project directory
+dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(dotenv_path)
 
 def send_notification(subject, body, to_email):
     from_email = os.getenv('EMAIL_USER', 'your_email@example.com')
@@ -15,7 +20,9 @@ def send_notification(subject, body, to_email):
     msg.attach(MIMEText(body, 'plain'))
 
     try:
-        server = smtplib.SMTP(os.getenv('SMTP_SERVER', 'smtp.example.com'), int(os.getenv('SMTP_PORT', 587)))
+        smtp_server = os.getenv('SMTP_SERVER', 'smtp.example.com')
+        smtp_port = int(os.getenv('SMTP_PORT', 587))
+        server = smtplib.SMTP(smtp_server, smtp_port)
         server.starttls()
         server.login(from_email, from_password)
         text = msg.as_string()
