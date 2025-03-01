@@ -1,0 +1,27 @@
+name: Check if branch is up-to-date with main
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-up-to-date:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Fetch pull request branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Check if branch is behind main
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor origin/main HEAD; then
+            echo "🚨 Dein Branch ist nicht auf dem neuesten Stand mit main!"
+            echo "Bitte führe 'git merge origin/main' oder '
