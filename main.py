@@ -3,14 +3,16 @@ from bs4 import BeautifulSoup
 import psycopg2
 import json
 from pyfiglet import figlet_format
+from notification import send_notification
+import os
 
 # PostgreSQL connection details
 db_params = {
-    'dbname': 'web_crawler',
-    'user': 'schaechner',
-    'password': 'SchaechnerServer',
-    'host': '192.168.188.36',
-    'port': '6543'
+    'dbname': os.getenv('DB_NAME', 'web_crawler'),
+    'user': os.getenv('DB_USER', 'schaechner'),
+    'password': os.getenv('DB_PASSWORD', 'SchaechnerServer'),
+    'host': os.getenv('DB_HOST', '192.168.188.36'),
+    'port': os.getenv('DB_PORT', '6543')
 }
 
 def connect_db():
@@ -28,17 +30,18 @@ def create_table(conn):
                 category TEXT,
                 keywords TEXT,
                 word_count INTEGER,
-                editor_abbr TEXT
+                editor_abbr TEXT,
+                site_name TEXT
             )
         ''')
         conn.commit()
 
-def insert_article(conn, title, url, date, author, category, keywords, word_count, editor_abbr):
+def insert_article(conn, title, url, date, author, category, keywords, word_count, editor_abbr, site_name):
     with conn.cursor() as cur:
         cur.execute('''
-            INSERT INTO articles (title, url, date, author, category, keywords, word_count, editor_abbr)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        ''', (title, url, date, author, category, keywords, word_count, editor_abbr))
+            INSERT INTO articles (title, url, date, author, category, keywords, word_count, editor_abbr, site_name)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (title, url, date, author, category, keywords, word_count, editor_abbr, site_name))
         conn.commit()
 
 def get_article_details(url):
@@ -64,10 +67,16 @@ def get_article_details(url):
                     title = abbr_link.get('title', '')
                     editor_abbr = abbr_link.text
 
+    # Extract site name
+    site_name = "N/A"
+    site_name_meta = soup.find("meta", property="og:site_name")
+    if site_name_meta and site_name_meta.get("content"):
+        site_name = site_name_meta["content"]
+
     # LDJSON extrahieren
     script_tag = soup.find("script", type="application/ld+json")
     if not script_tag:
-        return "N/A", "N/A", "N/A", None, editor_abbr
+        return "N/A", "N/A", "N/A", None, editor_abbr, site_name
 
     try:
         data = json.loads(script_tag.string)
@@ -75,9 +84,9 @@ def get_article_details(url):
         category = data.get("articleSection", "N/A")
         keywords = ", ".join([t["name"] for t in data.get("about", [])]) if "about" in data else "N/A"
         word_count = data.get("wordCount", None)
-        return author, category, keywords, word_count, editor_abbr
+        return author, category, keywords, word_count, editor_abbr, site_name
     except json.JSONDecodeError:
-        return "N/A", "N/A", "N/A", None, editor_abbr
+        return "N/A", "N/A", "N/A", None, editor_abbr, site_name
 
 def crawl_heise(initial_year=2025, initial_month=3):
     year = initial_year
@@ -92,6 +101,11 @@ def crawl_heise(initial_year=2025, initial_month=3):
 
         if not articles:
             print(f"Keine Artikel gefunden für {year}-{month:02d}. Beende Crawl.")
+            send_notification(
+                subject="Crawl beendet",
+                body=f"Keine Artikel gefunden für {year}-{month:02d}. Der Crawl wurde beendet.",
+                to_email="server@xn--schchner-2za.de"
+            )
             break
 
         print(f"Gefundene Artikel: {len(articles)}")
@@ -110,13 +124,18 @@ def crawl_heise(initial_year=2025, initial_month=3):
                 date = time_element['datetime'] if time_element else 'N/A'
 
                 # Artikel öffnen und Details auslesen
-                author, category, keywords, word_count, editor_abbr = get_article_details(link)
+                author, category, keywords, word_count, editor_abbr, site_name = get_article_details(link)
 
-                insert_article(conn, title, link, date, author, category, keywords, word_count, editor_abbr)
-                print(f"Gespeichert: {title} | {author} | {category} | {keywords} | Word Count: {word_count} | Editor: {editor_abbr}")
+                insert_article(conn, title, link, date, author, category, keywords, word_count, editor_abbr, site_name)
+                print(f"Gespeichert: {title} | {author} | {category} | {keywords} | Word Count: {word_count} | Editor: {editor_abbr} | Site: {site_name}")
 
             except Exception as e:
                 print(f"Fehler bei Artikel: {e}")
+                send_notification(
+                    subject="Fehler beim Crawlen",
+                    body=f"Fehler bei Artikel: {e}",
+                    to_email="server@xn--schchner-2za.de"
+                )
 
         conn.close()
 
