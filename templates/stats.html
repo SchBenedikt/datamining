@@ -70,6 +70,31 @@
     <div class="container-fluid">
       <h1 class="mb-4 text-center">Datenbank Statistik</h1>
       
+      <!-- Integrity Status Field with Details Button -->
+      <div id="integrityStatus" class="alert" role="alert">
+        <!-- JavaScript will fill this in on page load -->
+      </div>
+      
+      <!-- Error Details Modal -->
+      <div class="modal fade" id="errorModal" tabindex="-1" role="dialog" aria-labelledby="errorModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+          <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+              <h5 class="modal-title" id="errorModalLabel">Integritätsfehler Details</h5>
+              <button type="button" class="close text-white" data-dismiss="modal" aria-label="Schließen">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <div class="modal-body" id="errorDetails">
+              <!-- Details populated by JS -->
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-dismiss="modal">Schließen</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <!-- Prominente Anzeige der Gesamtzeilen (Artikel) -->
       <div class="card mb-4">
         <div class="card-body text-center">
@@ -156,35 +181,76 @@
         });
       });
       
-      // Aggregate articles data (from table "articles") for grouping by author and category
+      // Integrity Check via JavaScript:
+      window.addEventListener('load', function() {
+        let integrityMessages = [];
+        let detailedMessages = []; // For modal details
+        // Use combination of title and date to check uniqueness.
+        const articles = {{ data.articles | tojson }};
+        if (articles && articles.length > 0) {
+          let titleDateArray = articles.map(a => a.title + '|' + (a.date ? a.date : ''));
+          let uniqueTitleDates = new Set(titleDateArray);
+          if (titleDateArray.length !== uniqueTitleDates.size) {
+            integrityMessages.push("Warnung: Duplikate erkennen (gleicher Titel und Datum) gefunden.");
+            // Identify duplicates:
+            let duplicates = titleDateArray.filter((item, index) => titleDateArray.indexOf(item) !== index);
+            detailedMessages.push("Duplizierte Titel+Daten: " + Array.from(new Set(duplicates)).join(", "));
+          }
+          let validDates = articles.filter(a => a.date && a.date !== "N/A");
+          if(validDates.length === 0) {
+            integrityMessages.push("Warnung: Keine gültigen Veröffentlichungsdaten gefunden.");
+            detailedMessages.push("Es wurden keine Artikel mit gültigen Datumsangaben gefunden.");
+          }
+        } else {
+          integrityMessages.push("Warnung: Keine Artikeldaten vorhanden.");
+          detailedMessages.push("Die Artikeldaten konnten nicht geladen werden.");
+        }
+        
+        let statusDiv = document.getElementById('integrityStatus');
+        if (integrityMessages.length > 0) {
+          statusDiv.className = "alert alert-danger";
+          statusDiv.innerHTML = integrityMessages.join("<br>") +
+            '<br><button id="showDetailsBtn" class="btn btn-sm btn-outline-light mt-2">Fehlerdetails anzeigen</button>';
+          // Attach click event for the details button
+          document.getElementById('showDetailsBtn').addEventListener('click', function() {
+            document.getElementById('errorDetails').innerHTML = detailedMessages.join("<br>");
+            $('#errorModal').modal('show');
+          });
+        } else {
+          statusDiv.className = "alert alert-success";
+          statusDiv.innerHTML = "Alle Integritätstests erfolgreich.";
+        }
+      });
+      
+      // Build the stacked bar chart for Top Autoren pro Kategorie
+      const authorsSet = new Set();
+      const categoriesSet = new Set();
       const articles = {{ data.articles | tojson }};
       
-      let authorsSet = new Set();
-      let categoriesSet = new Set();
       articles.forEach(row => {
         if(row.author && row.category) {
           authorsSet.add(row.author);
           categoriesSet.add(row.category);
         }
       });
-      let authors = Array.from(authorsSet);
-      let categories = Array.from(categoriesSet);
+      const authors = Array.from(authorsSet);
+      const categories = Array.from(categoriesSet);
       
-      // Initialize count matrix: one array per category with counts per author
-      let counts = {};
+      // Initialize count matrix
+      const counts = {};
       categories.forEach(cat => {
         counts[cat] = new Array(authors.length).fill(0);
       });
       articles.forEach(row => {
-        let author = row.author;
-        let category = row.category;
+        const author = row.author;
+        const category = row.category;
         if(author && category) {
           counts[category][authors.indexOf(author)] += 1;
         }
       });
       
-      // Create datasets for Chart.js (one dataset per category)
-      let datasets = [];
+      // Create datasets for Chart.js
+      const datasets = [];
       categories.forEach(cat => {
         const r = Math.floor(Math.random() * 156) + 100;
         const g = Math.floor(Math.random() * 156) + 100;
@@ -198,7 +264,6 @@
         });
       });
       
-      // Build the stacked bar chart
       const ctx = document.getElementById('authorCategoryChart').getContext('2d');
       new Chart(ctx, {
         type: 'bar',
@@ -219,5 +284,6 @@
         }
       });
     </script>
+    
   </body>
 </html>
