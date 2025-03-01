@@ -251,7 +251,10 @@ def crawl_heise(initial_year=2025, initial_month=3):
                 else:
                     print_status(title, "INFO")
             except Exception as e:
-                print_status(f"Fehler bei Artikel {link}: {e}", "ERROR")
+                error_msg = f"Fehler bei Artikel {link}: {e}"
+                print_status(error_msg, "ERROR")
+                # Send an email alert (recipient from env variable ALERT_EMAIL)
+                send_notification("Crawling Fehler", error_msg, os.getenv('ALERT_EMAIL', 'admin@example.com'))
                 continue
             # Update state after each article
             update_crawl_state(conn, year, month, i + 1)
