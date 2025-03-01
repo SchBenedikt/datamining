@@ -11,7 +11,11 @@ db_params = {
     'password': 'SchaechnerServer',
     'host': '192.168.188.36',
     'port': '6543'
-Hallo!!!!!!!!!!!
+}
+
+def connect_db():
+    return psycopg2.connect(**db_params)
+
 def create_table(conn):
     with conn.cursor() as cur:
         cur.execute('''
