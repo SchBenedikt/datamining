@@ -183,40 +183,43 @@ def print_status(message, level="INFO"):
     }
     print(f"{colors.get(level, colors['INFO'])}[{level}] {message}{colors['RESET']}")
 
-def crawl_heise(initial_year=2025, initial_month=3):
-    # Initialize tables and load saved state:
+def crawl_heise(initial_year=None, initial_month=None):
+    """
+    Startet den Crawl-Prozess:
+    - Wird ein gespeicherter Fortschritt gefunden, so wird genau dort fortgesetzt.
+    - Fehlt der gespeicherte Fortschritt, werden als Startpunkt das aktuelle Datum verwendet.
+    - Wird die aktuelle (heutige) Archivseite verarbeitet, so wird nach dem Durchlauf gewartet und 
+      die Seite erneut abgefragt, um neu hinzugekommene Artikel zu erfassen.
+    - Bereits in der DB vorhandene Artikel (unique URL) werden übersprungen.
+    """
     conn = connect_db()
     create_table(conn)
     create_crawl_state_table(conn)
+    
+    # State: Wenn vorhanden, verwende ihn, sonst aktuelles Datum
     state = get_crawl_state(conn)
     if state:
         year, month, article_index = state
-        print_status(f"Wiederaufnahme Crawling ab: {year}/{month:02d}, Artikel-ID {article_index}", "INFO")
+        print_status(f"Resuming crawl from saved state: {year}/{month:02d}, article index {article_index}", "INFO")
     else:
-        year, month, article_index = initial_year, initial_month, 0
+        now = datetime.now()
+        year, month, article_index = now.year, now.month, 0
+        update_crawl_state(conn, year, month, article_index)
+        print_status(f"Starting crawl from current date: {year}/{month:02d}", "INFO")
     conn.close()
 
+    import time
     while True:
         conn = connect_db()
-        print_status(f"Crawle URL: https://www.heise.de/newsticker/archiv/{year}/{month:02d}", "INFO")
-        response = requests.get(f"https://www.heise.de/newsticker/archiv/{year}/{month:02d}")
+        # Zum Start jeder Archivseite den aktuellen Fortschritt der Seite neu auslesen.
+        state = get_crawl_state(conn)
+        if state and state[0] == year and state[1] == month:
+            article_index = state[2]
+        archive_url = f"https://www.heise.de/newsticker/archiv/{year}/{month:02d}"
+        print_status(f"Crawling archive page: {archive_url} (ab Artikel {article_index})", "INFO")
+        response = requests.get(archive_url)
         soup = BeautifulSoup(response.content, 'html.parser')
         articles = soup.find_all('article')
-
-        # NEW: Integrity Checks
-        titles = []
-        date_set = set()
-        for a in articles:
-            h3 = a.find('h3')
-            if h3:
-                titles.append(h3.get_text(strip=True))
-            time_elem = a.find('time')
-            if time_elem and time_elem.has_attr('datetime'):
-                date_set.add(time_elem['datetime'][:10])  # only the date part
-        if len(titles) != len(set(titles)):
-            print_status("Warnung: Duplikate in Artikeltiteln gefunden!", "WARNING")
-        if not date_set:
-            print_status("Warnung: Keine Veröffentlichungsdaten in den Artikeln gefunden!", "WARNING")
 
         if not articles:
             print_status(f"Keine Artikel gefunden für {year}-{month:02d}. Beende Crawl.", "WARNING")
@@ -226,7 +229,7 @@ def crawl_heise(initial_year=2025, initial_month=3):
 
         print_status(f"Gefundene Artikel: {len(articles)}", "INFO")
 
-        # Start processing from saved article_index
+        # Verarbeitung ab dem gespeicherten article_index
         for i in range(article_index, len(articles)):
             try:
                 article = articles[i]
@@ -235,17 +238,13 @@ def crawl_heise(initial_year=2025, initial_month=3):
                 if not link.startswith("http"):
                     link = "https://www.heise.de" + link
                 if "${" in link:
-                    # Display the URL of the skipped article
                     print_status(f"Überspringe Artikel mit ungültigem Link: {link}", "WARNING")
                     continue
 
                 time_element = article.find('time')
                 date = time_element['datetime'] if time_element else 'N/A'
-
                 author, category, keywords, word_count, editor_abbr, site_name, alt_data = get_article_details(link)
                 replaced = insert_article(conn, title, link, date, author, category, keywords, word_count, editor_abbr, site_name, alt_data)
-                # Instead of printing an ERROR when the article is already in the database,
-                # show an informational message so that duplicates are not flagged as an error.
                 if replaced:
                     print_status(f"{title} bereits vorhanden", "INFO")
                 else:
@@ -253,23 +252,28 @@ def crawl_heise(initial_year=2025, initial_month=3):
             except Exception as e:
                 error_msg = f"Fehler bei Artikel {link}: {e}"
                 print_status(error_msg, "ERROR")
-                # Send an email alert (recipient from env variable ALERT_EMAIL)
                 send_notification("Crawling Fehler", error_msg, os.getenv('ALERT_EMAIL', 'admin@example.com'))
                 continue
-            # Update state after each article
+            # Aktualisiere Fortschritt nach jedem Artikel
             update_crawl_state(conn, year, month, i + 1)
-
-        # Finished current archive page; reset article_index to 0 for next iteration.
+        
+        # Seite vollständig verarbeitet: Setze article_index zurück
         update_crawl_state(conn, year, month, 0)
         conn.close()
-
-        # Navigation: move to previous month
+        
+        now = datetime.now()
+        # Wenn die verarbeitete Archivseite gleich dem aktuellen Datum ist, warte auf neue Artikel.
+        if year == now.year and month == now.month:
+            print_status("Überprüfe aktuelle Archivseite auf neue Artikel (warte 5 Minuten)", "INFO")
+            time.sleep(300)  # 5 Minuten warten
+            continue
+        # Andernfalls wechsle zur älteren Archivseite
         if month == 1:
             year -= 1
             month = 12
         else:
             month -= 1
-
+        
         try:
             formatted_text = figlet_format(f"{year}, {month:02d}")
             print(f"\033[1m{formatted_text}\033[0m")
