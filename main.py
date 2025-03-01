@@ -184,4 +184,10 @@ def crawl_heise(initial_year=2025, initial_month=3):
             print_status(f"Fehler bei Ausgabe: {e}", "ERROR")
 
 if __name__ == '__main__':
+    import threading
+    # Start the API in a separate daemon thread
+    threading.Thread(
+        target=lambda: __import__('api').app.run(debug=True, use_reloader=False),
+        daemon=True
+    ).start()
     crawl_heise()
