@@ -24,7 +24,7 @@ def create_table(conn):
             CREATE TABLE IF NOT EXISTS articles (
                 id SERIAL PRIMARY KEY,
                 title TEXT,
-                url TEXT,
+                url TEXT UNIQUE,
                 date TEXT,
                 author TEXT,
                 category TEXT,
@@ -37,12 +37,27 @@ def create_table(conn):
         conn.commit()
 
 def insert_article(conn, title, url, date, author, category, keywords, word_count, editor_abbr, site_name):
+    replaced = False
     with conn.cursor() as cur:
+        # Prüfe, ob URL bereits existiert
+        cur.execute("SELECT id FROM articles WHERE url=%s", (url,))
+        if cur.fetchone():
+            replaced = True
         cur.execute('''
             INSERT INTO articles (title, url, date, author, category, keywords, word_count, editor_abbr, site_name)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (url) DO UPDATE SET
+                title = EXCLUDED.title,
+                date = EXCLUDED.date,
+                author = EXCLUDED.author,
+                category = EXCLUDED.category,
+                keywords = EXCLUDED.keywords,
+                word_count = EXCLUDED.word_count,
+                editor_abbr = EXCLUDED.editor_abbr,
+                site_name = EXCLUDED.site_name
         ''', (title, url, date, author, category, keywords, word_count, editor_abbr, site_name))
-        conn.commit()
+    conn.commit()
+    return replaced
 
 def get_article_details(url):
     response = requests.get(url)
@@ -119,15 +134,21 @@ def crawl_heise(initial_year=2025, initial_month=3):
                 link = article.find('a')['href']
                 if not link.startswith("http"):
                     link = "https://www.heise.de" + link
+                # Prüfe, ob der Link ein Platzhalter ist, und überspringe ihn falls ja
+                if "${" in link:
+                    print(f"\033[93mÜberspringe Artikel mit ungültigem Link: {link}\033[0m")
+                    continue
 
                 time_element = article.find('time')
                 date = time_element['datetime'] if time_element else 'N/A'
 
                 # Artikel öffnen und Details auslesen
                 author, category, keywords, word_count, editor_abbr, site_name = get_article_details(link)
-
-                insert_article(conn, title, link, date, author, category, keywords, word_count, editor_abbr, site_name)
-                print(f"Gespeichert: {title} | {author} | {category} | {keywords} | Word Count: {word_count} | Editor: {editor_abbr} | Site: {site_name}")
+                replaced = insert_article(conn, title, link, date, author, category, keywords, word_count, editor_abbr, site_name)
+                if replaced:
+                    print(f"\033[91m{title}\033[0m")  # Rot markiert
+                else:
+                    print(title)
 
             except Exception as e:
                 print(f"Fehler bei Artikel: {e}")
@@ -148,10 +169,10 @@ def crawl_heise(initial_year=2025, initial_month=3):
 
         # Anzeige im Terminal, wenn Monat/Jahr gewechselt wird
         try:
-            formatted_text = figlet_format(f"Wechsel zu: Jahr {year}, Monat {month:02d}")
+            formatted_text = figlet_format(f"{year}, {month:02d}")
             print(f"\033[1m{formatted_text}\033[0m")
-        except ImportError:
-            print(f"\033[1m{year}, Monat {month:02d}\033[0m")
+        except Exception as e:
+            print(f"Fehler bei Ausgabe: {e}")
 
 if __name__ == '__main__':
     crawl_heise()
