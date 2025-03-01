@@ -184,27 +184,16 @@ def print_status(message, level="INFO"):
     print(f"{colors.get(level, colors['INFO'])}[{level}] {message}{colors['RESET']}")
 
 def crawl_heise(initial_year=2025, initial_month=3):
+    # Initialize tables and load saved state:
     conn = connect_db()
     create_table(conn)
     create_crawl_state_table(conn)
-    
-    # Get current year and month
-    current = datetime.now()
-    current_year = current.year
-    current_month = current.month
-
     state = get_crawl_state(conn)
     if state:
-        saved_year, saved_month, article_index = state
-        # If current date is newer than saved state, update state to current date
-        if (current_year > saved_year) or (current_year == saved_year and current_month > saved_month):
-            saved_year, saved_month, article_index = current_year, current_month, 0
-            update_crawl_state(conn, saved_year, saved_month, 0)
-        print_status(f"Wiederaufnahme Crawling ab: {saved_year}/{saved_month:02d}, Artikel-ID {article_index}", "INFO")
-        year, month = saved_year, saved_month
+        year, month, article_index = state
+        print_status(f"Wiederaufnahme Crawling ab: {year}/{month:02d}, Artikel-ID {article_index}", "INFO")
     else:
-        # No saved state, start with current date
-        year, month, article_index = current_year, current_month, 0
+        year, month, article_index = initial_year, initial_month, 0
     conn.close()
 
     while True:
