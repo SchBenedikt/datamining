@@ -1,10 +1,13 @@
-# Heise News Crawler 🚀
+<table>
+  <tr>
+    <!-- Linke Spalte: Bild -->
+    <td style="vertical-align: top; width: 50%;">
+      <img src="https://github.com/user-attachments/assets/98dc9437-12aa-4245-85c0-fac7db8973b1" alt="Web Crawler - visual selection-2" style="display: block; margin-top: 0; max-width:100%;">
+    </td>
+    <!-- Rechte Spalte: Text -->
+    <td style="vertical-align: top; width: 50%;">
 
-A web crawler that scrapes articles from the Heise News Archive and stores them in a PostgreSQL database.
-
----
-
-## 🌍 Purpose & Functionality
+# 🌍 Purpose & Functionality
 
 The **Heise News Crawler** is designed to automatically extract and store news articles from Heise's archive. The primary goals are:
 
@@ -66,6 +69,7 @@ Heise-Article 2
 ```
 
 If no articles are found, the crawl process will stop, and an email notification will be sent.
+</table>
 
 ---
 
@@ -85,6 +89,8 @@ If no articles are found, the crawl process will stop, and an email notification
 | site\_name   | TEXT   | Website name         |
 
 ---
+
+
 
 ## 📩 Error Notifications
 
@@ -108,8 +114,6 @@ If any errors occur, an email notification will be sent to `server@xn--schchner-
 ---
 
 ## 📜 License
-
-
 Happy Crawling! 🎉
 
 -- by 01.03.2025
