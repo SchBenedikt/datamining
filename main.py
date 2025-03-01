@@ -6,6 +6,7 @@ from pyfiglet import figlet_format
 from notification import send_notification
 import os
 from datetime import datetime
+from psycopg2.extras import Json
 
 # PostgreSQL connection details
 db_params = {
@@ -19,6 +20,7 @@ db_params = {
 def connect_db():
     return psycopg2.connect(**db_params)
 
+# Modify create_table to remove hard-coded language columns:
 def create_table(conn):
     with conn.cursor() as cur:
         cur.execute('''
@@ -32,11 +34,21 @@ def create_table(conn):
                 keywords TEXT,
                 word_count INTEGER,
                 editor_abbr TEXT,
-                site_name TEXT,
-                alternate_urls TEXT
+                site_name TEXT
             )
         ''')
         conn.commit()
+
+# NEW: Add helper function to add language columns dynamically
+def ensure_language_columns(conn, languages):
+    with conn.cursor() as cur:
+        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'articles';")
+        existing = {row[0] for row in cur.fetchall()}
+    for lang in languages:
+        if lang not in existing:
+            with conn.cursor() as cur:
+                cur.execute(f'ALTER TABLE articles ADD COLUMN "{lang}" TEXT;')
+            conn.commit()
 
 # NEW: Create crawl_state table with article_index
 def create_crawl_state_table(conn):
@@ -69,30 +81,7 @@ def update_crawl_state(conn, year, month, article_index):
         )
     conn.commit()
 
-def insert_article(conn, title, url, date, author, category, keywords, word_count, editor_abbr, site_name, alternate_urls):
-    replaced = False
-    with conn.cursor() as cur:
-        # Check if the URL already exists
-        cur.execute("SELECT id FROM articles WHERE url=%s", (url,))
-        if cur.fetchone():
-            replaced = True
-        cur.execute('''
-            INSERT INTO articles (title, url, date, author, category, keywords, word_count, editor_abbr, site_name, alternate_urls)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (url) DO UPDATE SET
-                title = EXCLUDED.title,
-                date = EXCLUDED.date,
-                author = EXCLUDED.author,
-                category = EXCLUDED.category,
-                keywords = EXCLUDED.keywords,
-                word_count = EXCLUDED.word_count,
-                editor_abbr = EXCLUDED.editor_abbr,
-                site_name = EXCLUDED.site_name,
-                alternate_urls = EXCLUDED.alternate_urls
-        ''', (title, url, date, author, category, keywords, word_count, editor_abbr, site_name, alternate_urls))
-    conn.commit()
-    return replaced
-
+# Modify get_article_details to build alt_data as dict keyed by language code:
 def get_article_details(url):
     response = requests.get(url)
     soup = BeautifulSoup(response.content, 'html.parser')
@@ -118,21 +107,26 @@ def get_article_details(url):
     if site_name_meta and site_name_meta.get("content"):
         site_name = site_name_meta["content"]
 
-    # Extract alternate URLs with hreflang values from <link rel="alternate">
+    # Extract alternate URLs and organize them by language
     alternate_links = soup.find_all("link", rel="alternate")
-    alternates = []
+    alt_data = {}
     for link_tag in alternate_links:
-        hreflang = link_tag.get("hreflang", "x-default")
+        hreflang = link_tag.get("hreflang")
         href = link_tag.get("href")
-        if href and not href.startswith("http"):
+        if not href:
+            continue
+        if not href.startswith("http"):
             href = "https://www.heise.de" + href
-        alternates.append({"hreflang": hreflang, "href": href})
-    alternate_urls = json.dumps(alternates)
+        if hreflang:
+            lang = hreflang.strip().lower()
+            if lang == "x-default":  # Skip x-default
+                continue
+            alt_data[lang] = href
 
     # Extract LD+JSON data
     script_tag = soup.find("script", type="application/ld+json")
     if not script_tag:
-        return "N/A", "N/A", "N/A", None, editor_abbr, site_name, alternate_urls
+        return "N/A", "N/A", "N/A", None, editor_abbr, site_name, alt_data
 
     try:
         data = json.loads(script_tag.string)
@@ -140,9 +134,44 @@ def get_article_details(url):
         category = data.get("articleSection", "N/A")
         keywords = ", ".join([t["name"] for t in data.get("about", [])]) if "about" in data else "N/A"
         word_count = data.get("wordCount", None)
-        return author, category, keywords, word_count, editor_abbr, site_name, alternate_urls
+        return author, category, keywords, word_count, editor_abbr, site_name, alt_data
     except json.JSONDecodeError:
-        return "N/A", "N/A", "N/A", None, editor_abbr, site_name, alternate_urls
+        return "N/A", "N/A", "N/A", None, editor_abbr, site_name, alt_data
+
+# Modify insert_article to dynamically include language columns:
+def insert_article(conn, title, url, date, author, category, keywords, word_count, editor_abbr, site_name, alt_data):
+    replaced = False
+    with conn.cursor() as cur:
+        # Check if the URL exists
+        cur.execute("SELECT id FROM articles WHERE url=%s", (url,))
+        if cur.fetchone():
+            replaced = True
+        # Ensure all language columns exist
+        if alt_data:
+            ensure_language_columns(conn, alt_data.keys())
+        # Base columns and values
+        base_columns = ["title", "url", "date", "author", "category", "keywords", "word_count", "editor_abbr", "site_name"]
+        base_values = [title, url, date, author, category, keywords, word_count, editor_abbr, site_name]
+        # Append dynamic language columns and values
+        extra_columns = []
+        extra_values = []
+        if alt_data:
+            for lang, link in alt_data.items():
+                extra_columns.append(lang)
+                extra_values.append(link)
+        columns = base_columns + extra_columns
+        values = base_values + extra_values
+        placeholders = ", ".join(["%s"] * len(values))
+        columns_sql = ", ".join('"' + col + '"' for col in columns)
+        update_set = ", ".join(f'"{col}" = EXCLUDED."{col}"' for col in columns if col != "url")
+        query = f'''
+            INSERT INTO articles ({columns_sql})
+            VALUES ({placeholders})
+            ON CONFLICT (url) DO UPDATE SET {update_set}
+        '''
+        cur.execute(query, values)
+    conn.commit()
+    return replaced
 
 # Helper function for formatted printing
 def print_status(message, level="INFO"):
@@ -206,14 +235,15 @@ def crawl_heise(initial_year=2025, initial_month=3):
                 if not link.startswith("http"):
                     link = "https://www.heise.de" + link
                 if "${" in link:
+                    # Display the URL of the skipped article
                     print_status(f"Überspringe Artikel mit ungültigem Link: {link}", "WARNING")
                     continue
 
                 time_element = article.find('time')
                 date = time_element['datetime'] if time_element else 'N/A'
 
-                author, category, keywords, word_count, editor_abbr, site_name, alternate_urls = get_article_details(link)
-                replaced = insert_article(conn, title, link, date, author, category, keywords, word_count, editor_abbr, site_name, alternate_urls)
+                author, category, keywords, word_count, editor_abbr, site_name, alt_data = get_article_details(link)
+                replaced = insert_article(conn, title, link, date, author, category, keywords, word_count, editor_abbr, site_name, alt_data)
                 # Instead of printing an ERROR when the article is already in the database,
                 # show an informational message so that duplicates are not flagged as an error.
                 if replaced:
