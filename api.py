@@ -1,10 +1,8 @@
-from flask import Flask, jsonify
-import psycopg2
 import os
+import re  # New import for validation
+import psycopg2
+from flask import Flask, jsonify, render_template, redirect, url_for, request
 
-app = Flask(__name__)
-
-# Database connection details using environment variables
 db_params = {
     'dbname': os.getenv('DB_NAME', 'web_crawler'),
     'user': os.getenv('DB_USER', 'schaechner'),
@@ -13,46 +11,96 @@ db_params = {
     'port': os.getenv('DB_PORT', '6543')
 }
 
-def get_db_connection():
-    return psycopg2.connect(**db_params)
+def get_db_statistics():
+    """
+    Berechnet Statistikdaten aus der Datenbank web_crawler:
+    Ermittelt alle Tabellen im Schema 'public' und zählt die Anzahl der Zeilen.
+    """
+    try:
+        conn = psycopg2.connect(**db_params)
+        cur = conn.cursor()
+        # Alle Tabellen im public-Schema abrufen
+        cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';")
+        tables = cur.fetchall()
+        stats = {}
+        for (table_name,) in tables:
+            cur.execute(f"SELECT COUNT(*) FROM {table_name};")
+            count = cur.fetchone()[0]
+            stats[table_name] = count
+        cur.close()
+        conn.close()
+        return stats
+    except Exception as e:
+        print("Error calculating database statistics:", e)
+        return None
 
-@app.route('/api/stats')
+def get_db_data():
+    try:
+        conn = psycopg2.connect(**db_params)
+        cur = conn.cursor()
+        # Alle Tabellen im public-Schema abrufen
+        cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';")
+        tables = cur.fetchall()
+        data = {}
+        for (table_name,) in tables:
+            cur.execute(f"SELECT * FROM {table_name};")
+            rows = cur.fetchall()
+            # Get column names
+            colnames = [desc[0] for desc in cur.description]
+            # Convert rows to list of dicts
+            data[table_name] = [dict(zip(colnames, row)) for row in rows]
+        cur.close()
+        conn.close()
+        return data
+    except Exception as e:
+        print("Error fetching all data:", e)
+        return None
+
+def get_data_quality_stats(data):
+    stats = {}
+    for table_name, rows in data.items():
+        total = len(rows)
+        col_stats = {}
+        if total > 0:
+            for col in rows[0].keys():
+                missing = 0
+                for row in rows:
+                    value = row[col]
+                    if value is None or value == "" or (isinstance(value, str) and value.strip().upper() == "N/A"):
+                        missing += 1
+                col_stats[col] = missing
+        stats[table_name] = {"total": total, "missing": col_stats}
+    return stats
+
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Visit /stats for database statistics."  # New default route
+
+@app.route('/stats')
 def stats():
-    conn = get_db_connection()
-    with conn.cursor() as cur:
-        # Total articles
-        cur.execute("SELECT COUNT(*) FROM articles")
-        total = cur.fetchone()[0]
-        # Articles with alternate URLs (non-empty JSON after conversion)
-        cur.execute("SELECT COUNT(*) FROM articles WHERE alternate_urls IS NOT NULL AND alternate_urls != '[]'")
-        with_alternate = cur.fetchone()[0]
-        # Articles without alternate URLs
-        cur.execute("SELECT COUNT(*) FROM articles WHERE alternate_urls IS NULL OR alternate_urls = '[]'")
-        without_alternate = cur.fetchone()[0]
-        # Articles with valid keywords (not equal to 'N/A')
-        cur.execute("SELECT COUNT(*) FROM articles WHERE keywords IS NOT NULL AND keywords != 'N/A'")
-        with_keywords = cur.fetchone()[0]
-        # Articles without keywords
-        cur.execute("SELECT COUNT(*) FROM articles WHERE keywords IS NULL OR keywords = 'N/A'")
-        without_keywords = cur.fetchone()[0]
-        # Articles with word count present
-        cur.execute("SELECT COUNT(*) FROM articles WHERE word_count IS NOT NULL")
-        with_word_count = cur.fetchone()[0]
-        # Articles without word count data
-        cur.execute("SELECT COUNT(*) FROM articles WHERE word_count IS NULL")
-        without_word_count = cur.fetchone()[0]
-    conn.close()
+    data = get_db_data()
+    quality_stats = get_data_quality_stats(data)
+    return render_template('stats.html', data=data, quality_stats=quality_stats)
 
-    stats_data = {
-        "total": total,
-        "withAlternate": with_alternate,
-        "withoutAlternate": without_alternate,
-        "withKeywords": with_keywords,
-        "withoutKeywords": without_keywords,
-        "withWordCount": with_word_count,
-        "withoutWordCount": without_word_count
-    }
-    return jsonify(stats_data)
+# Remove /delete_articles route and add a generic route
+@app.route('/delete_table', methods=['POST'])
+def delete_table():
+    table_name = request.form.get("table_name", "")
+    # Validate table name (only letters, numbers, and underscores allowed)
+    if not re.match(r'^[A-Za-z0-9_]+$', table_name):
+        return "Ungültiger Tabellenname", 400
+    try:
+        conn = psycopg2.connect(**db_params)
+        cur = conn.cursor()
+        cur.execute(f"DROP TABLE IF EXISTS {table_name};")
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        return f"Fehler beim Löschen der Tabelle: {e}", 500
+    return redirect(url_for('stats'))
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=6000)
+if __name__ == "__main__":
+    app.run(debug=True)
