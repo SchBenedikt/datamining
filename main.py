@@ -223,7 +223,8 @@ def crawl_heise(initial_year=2025, initial_month=3):
     """
     Startet den Crawl-Prozess für Heise-News.
     Lädt den gespeicherten Fortschritt (Jahr, Monat, Artikel-Index) und setzt dort fort.
-    Extrahiert alle Artikel einer Archivseite und aktualisiert den Fortschritt.
+    Extrahiert alle Artikel einer Archivseite, überprüft auf doppelte URLs und 
+    warnt, wenn an einem Tag weniger als 10 Artikel gefunden wurden.
     Navigiert danach zur vorherigen Archivseite.
     """
     conn = connect_db()
@@ -239,7 +240,6 @@ def crawl_heise(initial_year=2025, initial_month=3):
         print_status(f"Startcrawl ab: {year}/{month:02d}", "INFO")
     conn.close()
 
-    # Haupt-Crawl-Schleife
     while True:
         conn = connect_db()
         archive_url = f"https://www.heise.de/newsticker/archiv/{year}/{month:02d}"
@@ -256,21 +256,42 @@ def crawl_heise(initial_year=2025, initial_month=3):
         soup = BeautifulSoup(response.content, 'html.parser')
         articles = soup.find_all('article')
 
-        # Einfache Integrity Checks
-        titles = []
-        date_set = set()
+        # -------------------------------
+        # Neue Integrity Checks (basierend auf URLs und Publikationsdatum)
+        # -------------------------------
+        urls = []
+        date_counts = {}
         for a in articles:
-            h3 = a.find('h3')
-            if h3:
-                titles.append(h3.get_text(strip=True))
+            # URL extrahieren und absolut machen
+            a_link = a.find('a')
+            if a_link:
+                url = a_link['href']
+                if not url.startswith("http"):
+                    url = "https://www.heise.de" + url
+                urls.append(url)
+            # Datum (nur Tag) extrahieren:
             time_elem = a.find('time')
             if time_elem and time_elem.has_attr('datetime'):
-                date_set.add(time_elem['datetime'][:10])
-        if len(titles) != len(set(titles)):
-            print_status("Warnung: Duplikate in Artikeltiteln gefunden!", "WARNING")
-        if not date_set:
-            print_status("Warnung: Keine Veröffentlichungsdaten in den Artikeln gefunden!", "WARNING")
+                d = time_elem['datetime'][:10]
+                date_counts[d] = date_counts.get(d, 0) + 1
 
+        if len(urls) != len(set(urls)):
+            print_status("Warnung: Duplikate in Artikel-URLs gefunden!", "WARNING")
+
+        # Setze heutiges Datum
+        today = datetime.now().strftime("%Y-%m-%d")
+        for d, count in date_counts.items():
+            if count < 10:
+                warn_msg = f"Warnung: Am {d} wurden nur {count} Artikel gefunden!"
+                print_status(warn_msg, "WARNING")
+                # Sende E-Mail nur, wenn es NICHT der heutige Tag ist
+                if d != today:
+                    send_notification("Crawling Warnung", warn_msg, os.getenv('ALERT_EMAIL', 'admin@example.com'))
+
+        # -------------------------------
+        # Ende neuer Integrity Checks
+        # -------------------------------
+        
         if not articles:
             print_status(f"Keine Artikel gefunden für {year}-{month:02d}. Beende Crawl.", "WARNING")
             update_crawl_state(conn, year, month, 0)
@@ -284,7 +305,8 @@ def crawl_heise(initial_year=2025, initial_month=3):
             try:
                 article = articles[i]
                 title = article.find('h3').get_text(strip=True)
-                link = article.find('a')['href']
+                a_link = article.find('a')
+                link = a_link['href'] if a_link else ""
                 if not link.startswith("http"):
                     link = "https://www.heise.de" + link
                 if "${" in link:
