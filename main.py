@@ -259,6 +259,7 @@ def crawl_heise(initial_year=2025, initial_month=3):
         # -------------------------------
         # Neue Integrity Checks (basierend auf URLs und Publikationsdatum)
         # -------------------------------
+        import calendar
         urls = []
         date_counts = {}
         for a in articles:
@@ -274,6 +275,13 @@ def crawl_heise(initial_year=2025, initial_month=3):
             if time_elem and time_elem.has_attr('datetime'):
                 d = time_elem['datetime'][:10]
                 date_counts[d] = date_counts.get(d, 0) + 1
+
+        # Ergänze für Tage, an denen gar kein Artikel gefunden wurde (basierend auf dem Monatsbereich)
+        days_in_month = calendar.monthrange(year, month)[1]
+        for day in range(1, days_in_month + 1):
+            d = f"{year}-{month:02d}-{day:02d}"
+            if d not in date_counts:
+                date_counts[d] = 0
 
         if len(urls) != len(set(urls)):
             print_status("Warnung: Duplikate in Artikel-URLs gefunden!", "WARNING")
