@@ -77,6 +77,11 @@
         <!-- JavaScript will fill this in on page load -->
       </div>
       
+      <!-- New button to toggle dpa authors filter -->
+      <div class="text-center mb-3">
+        <button id="toggleDpaBtn" class="btn btn-secondary">Autoren "dpa" ausblenden</button>
+      </div>
+      
       <!-- Error Details Modal -->
       <div class="modal fade" id="errorModal" tabindex="-1" role="dialog" aria-labelledby="errorModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered" role="document">
@@ -114,6 +119,18 @@
         <div class="card-body">
           <div class="chart-container">
             <canvas id="authorCategoryChart"></canvas>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Neues Diagramm: Top Autor pro Kategorie -->
+      <div class="card mb-4">
+        <div class="card-header">
+          Top Autor pro Kategorie
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="topAuthorChart"></canvas>
           </div>
         </div>
       </div>
@@ -197,6 +214,31 @@
           }
       });
       
+      // Initialize filter flag from localStorage (default false)
+      let hideDpa = (localStorage.getItem("hideDpa") === "true");
+      // Update button text based on current state
+      document.addEventListener("DOMContentLoaded", function(){
+        const btn = document.getElementById("toggleDpaBtn");
+        btn.textContent = hideDpa ? 'Autoren "dpa" einblenden' : 'Autoren "dpa" ausblenden';
+      });
+      
+      // Helper function to split authors and filter out "dpa" names when needed
+      function filterAuthors(authorStr) {
+         let authors = authorStr.split(',').map(a => a.trim()).filter(Boolean);
+         if (hideDpa) {
+             authors = authors.filter(a => !/^(dpa|mit Material der dpa)$/i.test(a));
+         }
+         return authors;
+      }
+      
+      // Toggle dpa filter button event
+      document.getElementById("toggleDpaBtn").addEventListener("click", function(){
+         hideDpa = !hideDpa;
+         localStorage.setItem("hideDpa", hideDpa);
+         this.textContent = hideDpa ? 'Autoren "dpa" einblenden' : 'Autoren "dpa" ausblenden';
+         location.reload();
+      });
+      
       // Build the stacked bar chart for Top Autoren pro Kategorie
       const authorsSet = new Set();
       const categoriesSet = new Set();
@@ -204,7 +246,10 @@
       
       articles.forEach(row => {
           if(row.author && row.category) {
-              authorsSet.add(row.author);
+              let authorsList = filterAuthors(row.author);
+              if(authorsList.length > 0) {
+                  authorsList.forEach(a => authorsSet.add(a));
+              }
               categoriesSet.add(row.category);
           }
       });
@@ -216,10 +261,15 @@
           counts[cat] = new Array(authors.length).fill(0);
       });
       articles.forEach(row => {
-          const author = row.author;
           const category = row.category;
-          if(author && category) {
-              counts[category][authors.indexOf(author)] += 1;
+          if(row.author && category) {
+              let authorsList = filterAuthors(row.author);
+              authorsList.forEach(author => {
+                  const idx = authors.indexOf(author);
+                  if(idx !== -1) {
+                      counts[category][idx] += 1;
+                  }
+              });
           }
       });
       
@@ -353,10 +403,7 @@
       const networkNodesSet = new Set();
       articles.forEach(row => {
           if (row.author) {
-              // Remove the filter that excludes authors with "dpa"
-              let authorsList = row.author.split(',')
-                  .map(a => a.trim())
-                  .filter(a => a !== '');
+              let authorsList = filterAuthors(row.author);
               authorsList.forEach(a => networkNodesSet.add(a));
               for (let i = 0; i < authorsList.length; i++) {
                   for (let j = i + 1; j < authorsList.length; j++) {
@@ -382,6 +429,78 @@
           physics: { stabilization: false }
       };
       new vis.Network(container, dataNetwork, optionsNetwork);
+      
+      // Neues Diagramm: Top Autor pro Kategorie
+      // Iterate over articles to collect author counts per category.
+      const categoryAuthorCounts = {};
+      articles.forEach(row => {
+          if(row.category && row.author){
+              // Split author field if multiple names are present.
+              const authorList = filterAuthors(row.author);
+              if (authorList.length > 0) {
+                  authorList.forEach(author => {
+                      if (!categoryAuthorCounts[row.category]) {
+                          categoryAuthorCounts[row.category] = {};
+                      }
+                      categoryAuthorCounts[row.category][author] = 
+                          (categoryAuthorCounts[row.category][author] || 0) + 1;
+                  });
+              }
+          }
+      });
+      
+      // For each category, find the author with the maximum count.
+      const topCategories = [];
+      const topAuthors = [];
+      const topCounts = [];
+      Object.keys(categoryAuthorCounts).forEach(cat => {
+          let maxCount = 0, maxAuthor = "";
+          Object.entries(categoryAuthorCounts[cat]).forEach(([author, count]) => {
+              if(count > maxCount){
+                  maxCount = count;
+                  maxAuthor = author;
+              }
+          });
+          topCategories.push(cat);
+          topAuthors.push(maxAuthor);
+          topCounts.push(maxCount);
+      });
+      
+      // Create a bar chart for top authors per category.
+      const ctxTopAuthor = document.getElementById('topAuthorChart').getContext('2d');
+      new Chart(ctxTopAuthor, {
+          type: 'bar',
+          data: {
+              labels: topCategories,
+              datasets: [{
+                  label: 'Anzahl Artikel (Top Autor)',
+                  data: topCounts,
+                  backgroundColor: topCategories.map(() => {
+                      const r = Math.floor(Math.random()*156) + 100;
+                      const g = Math.floor(Math.random()*156) + 100;
+                      const b = Math.floor(Math.random()*156) + 100;
+                      return `rgba(${r}, ${g}, ${b}, 0.6)`;
+                  })
+              }]
+          },
+          options: {
+              responsive: true,
+              plugins: {
+                  tooltip: {
+                      callbacks: {
+                          label: function(context){
+                              let idx = context.dataIndex;
+                              return topAuthors[idx] + ': ' + context.parsed.y + ' Artikel';
+                          }
+                      }
+                  },
+                  legend: { display: false }
+              },
+              scales: {
+                  y: { beginAtZero: true }
+              }
+          }
+      });
       
     </script>
     
