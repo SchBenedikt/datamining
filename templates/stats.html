@@ -46,6 +46,8 @@
         color: red;
       }
     </style>
+    <!-- Neues Script: vis-network (für Netzwerkanzeige) -->
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
   </head>
   <body>
     <!-- Navigation Bar -->
@@ -116,53 +118,29 @@
         </div>
       </div>
       
-      <!-- Tabelle für alle Daten -->
-      {% for table_name, rows in data.items() %}
-        <div class="card mb-4">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <div>
-              <h2 class="h5 mb-0">{{ table_name }}</h2>
-              {% set quality = quality_stats[table_name] %}
-              <small>Gesamte Zeilen: {{ quality.total }}</small>
-            </div>
-            <form method="POST" action="/delete_table" onsubmit="return confirm('Möchten Sie die Tabelle {{ table_name }} wirklich löschen?');">
-              <input type="hidden" name="table_name" value="{{ table_name }}">
-              <button type="submit" class="btn btn-danger btn-sm">Tabelle löschen</button>
-            </form>
-          </div>
-          <div class="card-body">
-            {% if rows %}
-              <div class="table-responsive">
-                <table class="table table-striped table-bordered datatable">
-                  <thead>
-                    <tr>
-                      {% for col in rows[0].keys() %}
-                        <th class="missing">Fehlend: {{ quality.missing[col] }}</th>
-                      {% endfor %}
-                    </tr>
-                    <tr>
-                      {% for col in rows[0].keys() %}
-                        <th>{{ col }}</th>
-                      {% endfor %}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for row in rows %}
-                      <tr>
-                        {% for col in row.values() %}
-                          <td>{{ col }}</td>
-                        {% endfor %}
-                      </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-            {% else %}
-              <p>Keine Einträge vorhanden.</p>
-            {% endif %}
-          </div>
+      <!-- Statt Tabellenanzeige: Hinweis -->
+      <div class="card mb-4">
+        <div class="card-body text-center">
+          <p class="text-muted">Tabellenanzeige wurde deaktiviert.</p>
         </div>
+      </div>
+
+      <!-- Entfernte Tabellenanzeige-Block -->
+      {# 
+      {% for table_name, rows in data.items() %}
+        ...existing code for table rendering...
       {% endfor %}
+      #}
+      
+      <!-- Neues Diagramm: Autorenverbindungen Netzwerk -->
+      <div class="card mb-4">
+        <div class="card-header">
+          Autorenverbindungen
+        </div>
+        <div class="card-body">
+          <div id="authorNetwork" style="height: 50vh;"></div>
+        </div>
+      </div>
       
     </div>
     
@@ -175,51 +153,48 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
       $(document).ready(function() {
-        $('table.datatable').DataTable({
-          ordering: true,
-          paging: true
-        });
+          $('table.datatable').DataTable({
+              ordering: true,
+              paging: true
+          });
       });
       
       // Integrity Check via JavaScript:
       window.addEventListener('load', function() {
-        let integrityMessages = [];
-        let detailedMessages = []; // For modal details
-        // Use combination of title and date to check uniqueness.
-        const articles = {{ data.articles | tojson }};
-        if (articles && articles.length > 0) {
-          let titleDateArray = articles.map(a => a.title + '|' + (a.date ? a.date : ''));
-          let uniqueTitleDates = new Set(titleDateArray);
-          if (titleDateArray.length !== uniqueTitleDates.size) {
-            integrityMessages.push("Warnung: Duplikate erkennen (gleicher Titel und Datum) gefunden.");
-            // Identify duplicates:
-            let duplicates = titleDateArray.filter((item, index) => titleDateArray.indexOf(item) !== index);
-            detailedMessages.push("Duplizierte Titel+Daten: " + Array.from(new Set(duplicates)).join(", "));
+          let integrityMessages = [];
+          let detailedMessages = []; // For modal details
+          const articles = {{ data.articles | tojson }};
+          if (articles && articles.length > 0) {
+              let titleDateArray = articles.map(a => a.title + '|' + (a.date ? a.date : ''));
+              let uniqueTitleDates = new Set(titleDateArray);
+              if (titleDateArray.length !== uniqueTitleDates.size) {
+                  integrityMessages.push("Warnung: Duplikate erkennen (gleicher Titel und Datum) gefunden.");
+                  let duplicates = titleDateArray.filter((item, index) => titleDateArray.indexOf(item) !== index);
+                  detailedMessages.push("Duplizierte Titel+Daten: " + Array.from(new Set(duplicates)).join(", "));
+              }
+              let validDates = articles.filter(a => a.date && a.date !== "N/A");
+              if(validDates.length === 0) {
+                  integrityMessages.push("Warnung: Keine gültigen Veröffentlichungsdaten gefunden.");
+                  detailedMessages.push("Es wurden keine Artikel mit gültigen Datumsangaben gefunden.");
+              }
+          } else {
+              integrityMessages.push("Warnung: Keine Artikeldaten vorhanden.");
+              detailedMessages.push("Die Artikeldaten konnten nicht geladen werden.");
           }
-          let validDates = articles.filter(a => a.date && a.date !== "N/A");
-          if(validDates.length === 0) {
-            integrityMessages.push("Warnung: Keine gültigen Veröffentlichungsdaten gefunden.");
-            detailedMessages.push("Es wurden keine Artikel mit gültigen Datumsangaben gefunden.");
+          
+          let statusDiv = document.getElementById('integrityStatus');
+          if (integrityMessages.length > 0) {
+              statusDiv.className = "alert alert-danger";
+              statusDiv.innerHTML = integrityMessages.join("<br>") +
+                  '<br><button id="showDetailsBtn" class="btn btn-sm btn-outline-light mt-2">Fehlerdetails anzeigen</button>';
+              document.getElementById('showDetailsBtn').addEventListener('click', function() {
+                  document.getElementById('errorDetails').innerHTML = detailedMessages.join("<br>");
+                  $('#errorModal').modal('show');
+              });
+          } else {
+              statusDiv.className = "alert alert-success";
+              statusDiv.innerHTML = "Alle Integritätstests erfolgreich.";
           }
-        } else {
-          integrityMessages.push("Warnung: Keine Artikeldaten vorhanden.");
-          detailedMessages.push("Die Artikeldaten konnten nicht geladen werden.");
-        }
-        
-        let statusDiv = document.getElementById('integrityStatus');
-        if (integrityMessages.length > 0) {
-          statusDiv.className = "alert alert-danger";
-          statusDiv.innerHTML = integrityMessages.join("<br>") +
-            '<br><button id="showDetailsBtn" class="btn btn-sm btn-outline-light mt-2">Fehlerdetails anzeigen</button>';
-          // Attach click event for the details button
-          document.getElementById('showDetailsBtn').addEventListener('click', function() {
-            document.getElementById('errorDetails').innerHTML = detailedMessages.join("<br>");
-            $('#errorModal').modal('show');
-          });
-        } else {
-          statusDiv.className = "alert alert-success";
-          statusDiv.innerHTML = "Alle Integritätstests erfolgreich.";
-        }
       });
       
       // Build the stacked bar chart for Top Autoren pro Kategorie
@@ -228,61 +203,186 @@
       const articles = {{ data.articles | tojson }};
       
       articles.forEach(row => {
-        if(row.author && row.category) {
-          authorsSet.add(row.author);
-          categoriesSet.add(row.category);
-        }
+          if(row.author && row.category) {
+              authorsSet.add(row.author);
+              categoriesSet.add(row.category);
+          }
       });
       const authors = Array.from(authorsSet);
       const categories = Array.from(categoriesSet);
       
-      // Initialize count matrix
       const counts = {};
       categories.forEach(cat => {
-        counts[cat] = new Array(authors.length).fill(0);
+          counts[cat] = new Array(authors.length).fill(0);
       });
       articles.forEach(row => {
-        const author = row.author;
-        const category = row.category;
-        if(author && category) {
-          counts[category][authors.indexOf(author)] += 1;
-        }
+          const author = row.author;
+          const category = row.category;
+          if(author && category) {
+              counts[category][authors.indexOf(author)] += 1;
+          }
       });
       
-      // Create datasets for Chart.js
       const datasets = [];
       categories.forEach(cat => {
-        const r = Math.floor(Math.random() * 156) + 100;
-        const g = Math.floor(Math.random() * 156) + 100;
-        const b = Math.floor(Math.random() * 156) + 100;
-        datasets.push({
-          label: cat,
-          data: counts[cat],
-          backgroundColor: `rgba(${r}, ${g}, ${b}, 0.6)`,
-          borderColor: `rgba(${r}, ${g}, ${b}, 1)`,
-          borderWidth: 1
-        });
+          const r = Math.floor(Math.random() * 156) + 100;
+          const g = Math.floor(Math.random() * 156) + 100;
+          const b = Math.floor(Math.random() * 156) + 100;
+          datasets.push({
+              label: cat,
+              data: counts[cat],
+              backgroundColor: `rgba(${r}, ${g}, ${b}, 0.6)`,
+              borderColor: `rgba(${r}, ${g}, ${b}, 1)`,
+              borderWidth: 1
+          });
       });
       
       const ctx = document.getElementById('authorCategoryChart').getContext('2d');
       new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: authors,
-          datasets: datasets
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            tooltip: { mode: 'index', intersect: false },
-            legend: { position: 'top' }
+          type: 'bar',
+          data: {
+              labels: authors,
+              datasets: datasets
           },
-          scales: {
-            x: { stacked: true },
-            y: { stacked: true, beginAtZero: true }
+          options: {
+              responsive: true,
+              plugins: {
+                  tooltip: { mode: 'index', intersect: false },
+                  legend: { position: 'top' }
+              },
+              scales: {
+                  x: { stacked: true },
+                  y: { stacked: true, beginAtZero: true }
+              }
           }
-        }
       });
+      
+      // [REMOVED] --- Kategorie Diagramm und Editor pro Kategorie Chart Code block removed ---
+      /*
+      const categoryCounts = {};
+      articles.forEach(row => {
+          if (row.category) {
+              categoryCounts[row.category] = (categoryCounts[row.category] || 0) + 1;
+          }
+      });
+      const catLabels = Object.keys(categoryCounts);
+      const catData = Object.values(categoryCounts);
+      const catColors = catLabels.map(() => {
+          const r = Math.floor(Math.random() * 256);
+          const g = Math.floor(Math.random() * 256);
+          const b = Math.floor(Math.random() * 256);
+          return `rgba(${r}, ${g}, ${b}, 0.6)`;
+      });
+      const ctxCat = document.getElementById('categoryChart').getContext('2d');
+      new Chart(ctxCat, {
+          type: 'pie',
+          data: {
+              labels: catLabels,
+              datasets: [{
+                  data: catData,
+                  backgroundColor: catColors
+              }]
+          },
+          options: { responsive: true }
+      });
+      
+      const categoryEditorData = {};
+      articles.forEach(row => {
+          if (row.category && row.editor_abbr) {
+              if (!categoryEditorData[row.category]) {
+                  categoryEditorData[row.category] = {};
+              }
+              categoryEditorData[row.category][row.editor_abbr] = (categoryEditorData[row.category][row.editor_abbr] || 0) + 1;
+          }
+      });
+      const catELabels = [];
+      const maxCounts = [];
+      const maxEditors = [];
+      for (let cat in categoryEditorData) {
+          catELabels.push(cat);
+          let editors = categoryEditorData[cat];
+          let maxCount = 0, maxEditor = "";
+          for (let ed in editors) {
+              if (editors[ed] > maxCount) {
+                  maxCount = editors[ed];
+                  maxEditor = ed;
+              }
+          }
+          maxCounts.push(maxCount);
+          maxEditors.push(maxEditor);
+      }
+      const ctxEditorCat = document.getElementById('editorCategoryChart').getContext('2d');
+      new Chart(ctxEditorCat, {
+          type: 'bar',
+          data: {
+              labels: catELabels,
+              datasets: [{
+                  label: 'Artikelanzahl',
+                  data: maxCounts,
+                  backgroundColor: catELabels.map(() => {
+                      const r = Math.floor(Math.random() * 256);
+                      const g = Math.floor(Math.random() * 256);
+                      const b = Math.floor(Math.random() * 256);
+                      return `rgba(${r}, ${g}, ${b}, 0.6)`;
+                  })
+              }]
+          },
+          options: {
+              responsive: true,
+              plugins: {
+                  tooltip: {
+                      callbacks: {
+                          label: function(context) {
+                              let index = context.dataIndex;
+                              return maxEditors[index] + ': ' + context.parsed.y + ' Artikel';
+                          }
+                      }
+                  },
+                  legend: { display: false }
+              },
+              scales: { y: { beginAtZero: true } }
+          }
+      });
+      */
+      
+      // -------------------------------
+      // Build Authors Network Graph
+      // -------------------------------
+      // Process articles: Split comma-separated author names and form unique pairs.
+      const networkEdgesMap = {};
+      const networkNodesSet = new Set();
+      articles.forEach(row => {
+          if (row.author) {
+              // Remove the filter that excludes authors with "dpa"
+              let authorsList = row.author.split(',')
+                  .map(a => a.trim())
+                  .filter(a => a !== '');
+              authorsList.forEach(a => networkNodesSet.add(a));
+              for (let i = 0; i < authorsList.length; i++) {
+                  for (let j = i + 1; j < authorsList.length; j++) {
+                      let [a, b] = [authorsList[i], authorsList[j]].sort();
+                      let key = a + '---' + b;
+                      networkEdgesMap[key] = (networkEdgesMap[key] || 0) + 1;
+                  }
+              }
+          }
+      });
+      const networkNodes = Array.from(networkNodesSet).map(author => ({ id: author, label: author }));
+      const networkEdges = Object.entries(networkEdgesMap).map(([key, count]) => {
+          let [from, to] = key.split('---');
+          return { from, to, value: count, label: String(count) };
+      });
+      var container = document.getElementById('authorNetwork');
+      var dataNetwork = {
+          nodes: new vis.DataSet(networkNodes),
+          edges: new vis.DataSet(networkEdges)
+      };
+      var optionsNetwork = {
+          edges: { scaling: { label: true }, smooth: true },
+          physics: { stabilization: false }
+      };
+      new vis.Network(container, dataNetwork, optionsNetwork);
+      
     </script>
     
   </body>
