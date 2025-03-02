@@ -336,7 +336,7 @@ if __name__ == '__main__':
     import threading
     # Startet die API in einem separaten Daemon-Thread
     threading.Thread(
-        target=lambda: __import__('api').app.run(debug=True, use_reloader=False),
+        target=lambda: __import__('api').app.run(debug=True, port=6600, use_reloader=False),
         daemon=True
     ).start()
     try:
