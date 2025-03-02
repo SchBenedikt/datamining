@@ -231,83 +231,12 @@
          return authors;
       }
       
-      // Instead of reloading the page, rebuild charts based on the updated hideDpa flag.
-      function rebuildCharts() {
-          // Clear existing chart containers or variables if needed.
-          // For example, you might destroy existing Chart instances.
-          // Re-run the block that builds the charts using the current hideDpa value.
-          
-          // Re-calculate the filtered authors and chart data:
-          const authorsSet = new Set();
-          const categoriesSet = new Set();
-          // articles is already defined globally from Jinja
-          articles.forEach(row => {
-              if(row.author && row.category) {
-                  let authorsList = filterAuthors(row.author);
-                  if(authorsList.length > 0) {
-                      authorsList.forEach(a => authorsSet.add(a));
-                  }
-                  categoriesSet.add(row.category);
-              }
-          });
-          const authors = Array.from(authorsSet);
-          const categories = Array.from(categoriesSet);
-          
-          const counts = {};
-          categories.forEach(cat => {
-              counts[cat] = new Array(authors.length).fill(0);
-          });
-          articles.forEach(row => {
-              const category = row.category;
-              if(row.author && category) {
-                  let authorsList = filterAuthors(row.author);
-                  authorsList.forEach(author => {
-                      const idx = authors.indexOf(author);
-                      if(idx !== -1) {
-                          counts[category][idx] += 1;
-                      }
-                  });
-              }
-          });
-          
-          // Rebuild chart: For demo, we re-create the chart for authorCategoryChart.
-          const datasets = [];
-          categories.forEach(cat => {
-              const r = Math.floor(Math.random() * 156) + 100;
-              const g = Math.floor(Math.random() * 156) + 100;
-              const b = Math.floor(Math.random() * 156) + 100;
-              datasets.push({
-                  label: cat,
-                  data: counts[cat],
-                  backgroundColor: `rgba(${r}, ${g}, ${b}, 0.6)`,
-                  borderColor: `rgba(${r}, ${g}, ${b}, 1)`,
-                  borderWidth: 1
-              });
-          });
-          const ctx = document.getElementById('authorCategoryChart').getContext('2d');
-          // Here you would destroy the previous chart instance if necessary.
-          new Chart(ctx, {
-              type: 'bar',
-              data: { labels: authors, datasets: datasets },
-              options: {
-                  responsive: true,
-                  plugins: {
-                      tooltip: { mode: 'index', intersect: false },
-                      legend: { position: 'top' }
-                  },
-                  scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }
-              }
-          });
-          
-          // Ähnlich können weitere Diagramme/Netzwerkgraphen neu aufgebaut werden.
-      }
-      
       // Toggle dpa filter button event
       document.getElementById("toggleDpaBtn").addEventListener("click", function(){
          hideDpa = !hideDpa;
          localStorage.setItem("hideDpa", hideDpa);
          this.textContent = hideDpa ? 'Autoren "dpa" einblenden' : 'Autoren "dpa" ausblenden';
-         rebuildCharts(); // Neuen Zustand anwenden ohne die Seite komplett neu zu laden
+         location.reload();
       });
       
       // Build the stacked bar chart for Top Autoren pro Kategorie
@@ -497,7 +426,15 @@
       };
       var optionsNetwork = {
           edges: { scaling: { label: true }, smooth: true },
-          physics: { stabilization: false }
+          physics: {
+              repulsion: {
+                  centralGravity: 0.2,
+                  springLength: 250,   // Erhöht den Abstand
+                  springConstant: 0.05,
+                  nodeDistance: 300    // Erhöht den minimalen Abstand zwischen Knoten
+              },
+              stabilization: { iterations: 250 }
+          }
       };
       new vis.Network(container, dataNetwork, optionsNetwork);
       
