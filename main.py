@@ -258,16 +258,8 @@ def crawl_heise(initial_year=2025, initial_month=3):
         soup = BeautifulSoup(response.content, 'html.parser')
         articles = soup.find_all('article')
 
-<<<<<<< Updated upstream
-        # -------------------------------
-        # Neue Integrity Checks (basierend auf URLs und Publikationsdatum)
-        # -------------------------------
-        import calendar
-        urls = []
-=======
         # Integrity Checks: Gruppiere Artikel nach Datum
         articles_by_date = {}
->>>>>>> Stashed changes
         date_counts = {}
         for a in articles:
             time_elem = a.find('time')
@@ -278,22 +270,7 @@ def crawl_heise(initial_year=2025, initial_month=3):
             articles_by_date.setdefault(d, []).append(a)
             date_counts[d] = date_counts.get(d, 0) + 1
 
-<<<<<<< Updated upstream
-        # Ergänze für Tage, an denen gar kein Artikel gefunden wurde (basierend auf dem Monatsbereich)
-        days_in_month = calendar.monthrange(year, month)[1]
-        for day in range(1, days_in_month + 1):
-            d = f"{year}-{month:02d}-{day:02d}"
-            if d not in date_counts:
-                date_counts[d] = 0
-
-        if len(urls) != len(set(urls)):
-            print_status("Warnung: Duplikate in Artikel-URLs gefunden!", "WARNING")
-
-        # Setze heutiges Datum
-        today = datetime.now().strftime("%Y-%m-%d")
-=======
         # Überprüfe jeden Tag auf Anzahl der Artikel
->>>>>>> Stashed changes
         for d, count in date_counts.items():
             if count < 10:
                 warn_msg = f"Warnung: Am {d} wurden nur {count} Artikel gefunden!"
