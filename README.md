@@ -94,7 +94,7 @@ If no articles are found, the crawl process will stop, and an email notification
 
 ## 📩 Error Notifications
 
-If any errors occur, an email notification will be sent to `server@xn--schchner-2za.de`.
+If any errors occur, an email notification will be sent.
 
 ---
 
