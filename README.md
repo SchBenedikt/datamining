@@ -117,4 +117,3 @@ If any errors occur, an email notification will be sent to `server@xn--schchner-
 Happy Crawling! 🎉
 
 -- by 01.03.2025
-
