@@ -20,11 +20,15 @@ def send_notification(subject, body, to_email):
     msg.attach(MIMEText(body, 'plain'))
 
     try:
-        smtp_server = os.getenv('SMTP_SERVER', 'smtp.example.com')
+        smtp_server = os.getenv('SMTP_SERVER', 'smtp.strato.de')
         smtp_port = int(os.getenv('SMTP_PORT', 587))
-        # Falls nötig, prüfen Sie auch, ob SMTP_SSL statt SMTP genutzt werden muss:
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
+        
+        if smtp_port == 465:
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port)
+        else:
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            
         server.login(from_email, from_password)
         text = msg.as_string()
         server.sendmail(from_email, to_email, text)
