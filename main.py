@@ -238,6 +238,8 @@ def crawl_heise(initial_year=2025, initial_month=3):
         year, month, article_index = initial_year, initial_month, 0
         update_crawl_state(conn, year, month, article_index)
         print_status(f"Startcrawl ab: {year}/{month:02d}", "INFO")
+        # Sende Benachrichtigung, dass das Crawling erfolgreich gestartet wurde
+        send_notification("Crawling gestartet", f"Crawling erfolgreich gestartet: {year}/{month:02d}", os.getenv('ALERT_EMAIL'))
     conn.close()
 
     while True:
@@ -249,7 +251,7 @@ def crawl_heise(initial_year=2025, initial_month=3):
             response.raise_for_status()
         except Exception as e:
             print_status(f"HTTP-Fehler beim Abrufen von {archive_url}: {e}", "ERROR")
-            send_notification("Crawling Fehler", f"HTTP-Fehler: {e}", os.getenv('ALERT_EMAIL', 'admin@example.com'))
+            send_notification("Crawling Fehler", f"HTTP-Fehler: {e}", os.getenv('ALERT_EMAIL'))
             conn.close()
             break
 
@@ -333,7 +335,7 @@ def crawl_heise(initial_year=2025, initial_month=3):
             except Exception as e:
                 error_msg = f"Fehler bei Artikel {link}: {e}"
                 print_status(error_msg, "ERROR")
-                send_notification("Crawling Fehler", error_msg, os.getenv('ALERT_EMAIL', 'admin@example.com'))
+                send_notification("Crawling Fehler", error_msg, os.getenv('ALERT_EMAIL', 'server@xn--schchner-2za.de'))
                 continue
             update_crawl_state(conn, year, month, i + 1)
 
