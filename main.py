@@ -258,89 +258,65 @@ def crawl_heise(initial_year=2025, initial_month=3):
         soup = BeautifulSoup(response.content, 'html.parser')
         articles = soup.find_all('article')
 
-        # -------------------------------
-        # Neue Integrity Checks (basierend auf URLs und Publikationsdatum)
-        # -------------------------------
-        import calendar
-        urls = []
+        # Integrity Checks: Gruppiere Artikel nach Datum
+        articles_by_date = {}
         date_counts = {}
         for a in articles:
-            # URL extrahieren und absolut machen
-            a_link = a.find('a')
-            if a_link:
-                url = a_link['href']
-                if not url.startswith("http"):
-                    url = "https://www.heise.de" + url
-                urls.append(url)
-            # Datum (nur Tag) extrahieren:
             time_elem = a.find('time')
             if time_elem and time_elem.has_attr('datetime'):
                 d = time_elem['datetime'][:10]
-                date_counts[d] = date_counts.get(d, 0) + 1
+            else:
+                d = 'N/A'
+            articles_by_date.setdefault(d, []).append(a)
+            date_counts[d] = date_counts.get(d, 0) + 1
 
-        # Ergänze für Tage, an denen gar kein Artikel gefunden wurde (basierend auf dem Monatsbereich)
-        days_in_month = calendar.monthrange(year, month)[1]
-        for day in range(1, days_in_month + 1):
-            d = f"{year}-{month:02d}-{day:02d}"
-            if d not in date_counts:
-                date_counts[d] = 0
-
-        if len(urls) != len(set(urls)):
-            print_status("Warnung: Duplikate in Artikel-URLs gefunden!", "WARNING")
-
-        # Setze heutiges Datum
-        today = datetime.now().strftime("%Y-%m-%d")
+        # Überprüfe jeden Tag auf Anzahl der Artikel
         for d, count in date_counts.items():
             if count < 10:
                 warn_msg = f"Warnung: Am {d} wurden nur {count} Artikel gefunden!"
                 print_status(warn_msg, "WARNING")
-                # Sende E-Mail nur, wenn es NICHT der heutige Tag ist
-                if d != today:
+                if d != datetime.now().strftime("%Y-%m-%d"):
                     send_notification("Crawling Warnung", warn_msg, os.getenv('ALERT_EMAIL', 'admin@example.com'))
 
-        # -------------------------------
-        # Ende neuer Integrity Checks
-        # -------------------------------
-        
         if not articles:
             print_status(f"Keine Artikel gefunden für {year}-{month:02d}. Beende Crawl.", "WARNING")
             update_crawl_state(conn, year, month, 0)
             conn.close()
             break
 
-        print_status(f"Gefundene Artikel: {len(articles)}", "INFO")
+        print_status(f"Gefundene Artikel (insgesamt): {len(articles)}", "INFO")
+        
+        # Verarbeite Artikel tagweise
+        for day in sorted(articles_by_date.keys()):
+            day_articles = articles_by_date[day]
+            print_status(f"Verarbeite {len(day_articles)} Artikel für den Tag {day}", "INFO")
+            for article in day_articles:
+                try:
+                    title = article.find('h3').get_text(strip=True)
+                    a_link = article.find('a')
+                    link = a_link['href'] if a_link else ""
+                    if not link.startswith("http"):
+                        link = "https://www.heise.de" + link
+                    if "${" in link:
+                        print_status(f"Überspringe Artikel mit ungültigem Link: {link}", "WARNING")
+                        continue
 
-        # Verarbeitung ab dem gespeicherten Artikel-Index
-        for i in range(article_index, len(articles)):
-            try:
-                article = articles[i]
-                title = article.find('h3').get_text(strip=True)
-                a_link = article.find('a')
-                link = a_link['href'] if a_link else ""
-                if not link.startswith("http"):
-                    link = "https://www.heise.de" + link
-                if "${" in link:
-                    print_status(f"Überspringe Artikel mit ungültigem Link: {link}", "WARNING")
+                    time_element = article.find('time')
+                    date = time_element['datetime'] if time_element else 'N/A'
+                    author, category, keywords, word_count, editor_abbr, site_name, alt_data = get_article_details(link)
+                    replaced = insert_article(conn, title, link, date, author, category, keywords, word_count, editor_abbr, site_name, alt_data)
+                    if replaced:
+                        print_status(f"{date} - {title} bereits vorhanden", "INFO")
+                    else:
+                        print_status(f"{date} - {title}", "INFO")
+                except Exception as e:
+                    error_msg = f"Fehler bei Artikel {link}: {e}"
+                    print_status(error_msg, "ERROR")
+                    send_notification("Crawling Fehler", error_msg, os.getenv('ALERT_EMAIL', 'server@xn--schchner-2za.de'))
                     continue
-
-                time_element = article.find('time')
-                date = time_element['datetime'] if time_element else 'N/A'
-                author, category, keywords, word_count, editor_abbr, site_name, alt_data = get_article_details(link)
-                replaced = insert_article(conn, title, link, date, author, category, keywords, word_count, editor_abbr, site_name, alt_data)
-                # Ausgabe mit Artikel-Publikationsdatum
-                if replaced:
-                    print_status(f"{date} - {title} bereits vorhanden", "INFO")
-                else:
-                    print_status(f"{date} - {title}", "INFO")
-            except Exception as e:
-                error_msg = f"Fehler bei Artikel {link}: {e}"
-                print_status(error_msg, "ERROR")
-                send_notification("Crawling Fehler", error_msg, os.getenv('ALERT_EMAIL', 'server@xn--schchner-2za.de'))
-                continue
-            update_crawl_state(conn, year, month, i + 1)
-
-        # Archivseite abgeschlossen – Fortschritt zurücksetzen
-        update_crawl_state(conn, year, month, 0)
+            # Nach Abschluss des Tages: Fortschritt aktualisieren
+            update_crawl_state(conn, year, month, 0)
+            
         conn.close()
 
         # Navigationslogik: Wechsle zur vorherigen Archivseite
@@ -360,7 +336,7 @@ if __name__ == '__main__':
     import threading
     # Startet die API in einem separaten Daemon-Thread
     threading.Thread(
-        target=lambda: __import__('api').app.run(debug=True, use_reloader=False),
+        target=lambda: __import__('api').app.run(debug=True, host="0.0.0.0", use_reloader=False),
         daemon=True
     ).start()
     try:
