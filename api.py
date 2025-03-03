@@ -2,6 +2,9 @@ import os
 import re  # New import for validation
 import psycopg2
 from flask import Flask, jsonify, render_template, redirect, url_for, request
+from dotenv import load_dotenv  # hinzugefügt
+
+load_dotenv()  # hinzugefügt
 
 db_params = {
     'dbname': os.getenv('DB_NAME', 'web_crawler'),

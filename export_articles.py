@@ -2,6 +2,9 @@ import os
 import sys
 import pandas as pd
 from sqlalchemy import create_engine
+from dotenv import load_dotenv  # hinzugefügt
+
+load_dotenv()  # hinzugefügt
 
 def export_articles(engine, export_format):
     query = "SELECT * FROM articles"
@@ -22,11 +25,11 @@ def export_articles(engine, export_format):
     print(f"Exported articles table to {output_file}")
 
 if __name__ == '__main__':
-    db_name = os.getenv('DB_NAME', 'web_crawler')
-    db_user = os.getenv('DB_USER', 'schaechner')
-    db_password = os.getenv('DB_PASSWORD', 'SchaechnerServer')
-    db_host = os.getenv('DB_HOST', '192.168.188.36')
-    db_port = os.getenv('DB_PORT', '6543')
+    db_name = os.getenv('DB_NAME')
+    db_user = os.getenv('DB_USER')
+    db_password = os.getenv('DB_PASSWORD')
+    db_host = os.getenv('DB_HOST')
+    db_port = os.getenv('DB_PORT')
     connection_string = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
     engine = create_engine(connection_string)
 
