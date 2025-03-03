@@ -2,13 +2,16 @@ import os
 import re  # New import for validation
 import psycopg2
 from flask import Flask, jsonify, render_template, redirect, url_for, request
+from dotenv import load_dotenv  # hinzugefügt
+
+load_dotenv()  # hinzugefügt
 
 db_params = {
-    'dbname': os.getenv('DB_NAME', 'web_crawler'),
-    'user': os.getenv('DB_USER', 'schaechner'),
-    'password': os.getenv('DB_PASSWORD', 'SchaechnerServer'),
-    'host': os.getenv('DB_HOST', '192.168.188.36'),
-    'port': os.getenv('DB_PORT', '6543')
+    'dbname': os.getenv('DB_NAME'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'host': os.getenv('DB_HOST'),
+    'port': os.getenv('DB_PORT')
 }
 
 def get_db_statistics():
