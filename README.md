@@ -196,6 +196,16 @@ Please create a pull request or contact us via server@schächner.de
 
 ![image](https://github.com/user-attachments/assets/984babc4-d264-44be-8534-17fdae1f8d5f)
 
+![image](https://github.com/user-attachments/assets/0c1d7a13-0f28-497c-afb3-048ee0a309e7)
+
+![image](https://github.com/user-attachments/assets/ba9a3180-4ae8-4ab3-b4ae-3e81f4621c23)
+
+![image](https://github.com/user-attachments/assets/85ecd8a3-1f31-49d0-ae3a-efdfd98bef21)
+
+![image](https://github.com/user-attachments/assets/1d5c57f7-72be-4aca-8f03-d4fba8bfba9d)
+
+
+Check out also the [data/Datamining_Heise web crawler-3.twb](https://github.com/SchBenedikt/datamining/blob/3f3fe413aeff25a1ae024215745ed6fa82fc2add/data/Datamining_Heise%20web%20crawler-3.twb)-file with an excerpt of analyses.
 
 ---
 
