@@ -18,14 +18,17 @@ from psycopg2.extras import Json
 from pyfiglet import figlet_format
 from notification import send_notification
 from datetime import datetime
+from dotenv import load_dotenv  # hinzugefügt
+
+load_dotenv()  # hinzugefügt
 
 # PostgreSQL connection details
 db_params = {
-    'dbname': os.getenv('DB_NAME', 'web_crawler'),
-    'user': os.getenv('DB_USER', 'schaechner'),
-    'password': os.getenv('DB_PASSWORD', 'SchaechnerServer'),
-    'host': os.getenv('DB_HOST', '192.168.188.36'),
-    'port': os.getenv('DB_PORT', '6543')
+    'dbname': os.getenv('DB_NAME'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'host': os.getenv('DB_HOST'),
+    'port': os.getenv('DB_PORT')
 }
 
 def connect_db():
