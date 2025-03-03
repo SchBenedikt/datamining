@@ -2,7 +2,7 @@
   <tr>
     <!-- Linke Spalte: Bild -->
     <td style="vertical-align: top; width: 50%;">
-      <img src="https://github.com/user-attachments/assets/98dc9437-12aa-4245-85c0-fac7db8973b1" alt="Web Crawler - visual selection-2" style="display: block; margin-top: 0; max-width:100%;">
+      <img src="https://github.com/user-attachments/assets/ed4295d3-caf5-4e44-9014-b7b8399a7b65" alt="Web Crawler - visual selection-2" style="display: block; margin-top: 0; max-width:100%;">
     </td>
     <!-- Rechte Spalte: Text -->
     <td style="vertical-align: top; width: 50%;">
