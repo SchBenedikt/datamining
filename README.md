@@ -183,6 +183,19 @@ Please create a pull request or contact us via server@schächner.de
 ---
 
 
+
+
+
+## 🗂️ Examples
+
+(with Tableu, status March 2025)
+![image](https://github.com/user-attachments/assets/ce6ceae0-bdf4-499c-9577-973017bb1eff)
+
+
+
+
+---
+
 ## 📜 License
 This program is licensed under **GNU GENERAL PUBLIC LICENSE**
 
