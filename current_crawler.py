@@ -238,4 +238,10 @@ def main():
         time.sleep(300)
 
 if __name__ == '__main__':
+    import threading
+    # Starte den API-Endpoint in einem Daemon-Thread
+    threading.Thread(
+        target=lambda: __import__('api').app.run(debug=True, port=6600, use_reloader=False),
+        daemon=True
+    ).start()
     main()
