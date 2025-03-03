@@ -12,21 +12,20 @@ def export_articles(engine, export_format):
         df = pd.read_sql_query(query, engine)
         output_file = "articles_export.xlsx"
         df.to_excel(output_file, index=False)
-        print(f"Exported articles table to {output_file}")
+        print(f"📊 Exported articles table to {output_file}")
     elif export_format == "csv":
         query = "SELECT * FROM articles"
         df = pd.read_sql_query(query, engine)
         output_file = "articles_export.csv"
         df.to_csv(output_file, index=False)
-        print(f"Exported articles table to {output_file}")
+        print(f"📝 Exported articles table to {output_file}")
     elif export_format == "json":
         query = "SELECT * FROM articles"
         df = pd.read_sql_query(query, engine)
         output_file = "articles_export.json"
         df.to_json(output_file, orient="records")
-        print(f"Exported articles table to {output_file}")
+        print(f"🔣 Exported articles table to {output_file}")
     elif export_format == "sql":
-        # Exportiere alle Tabellen der Datenbank
         output_file = "database_export.sql"
         inspector = inspect(engine)
         table_names = inspector.get_table_names()
@@ -48,9 +47,9 @@ def export_articles(engine, export_format):
                     values_str = ", ".join(values)
                     statement = f"INSERT INTO {table} ({columns_str}) VALUES ({values_str});\n"
                     f.write(statement)
-        print(f"Exported entire database to {output_file}")
+        print(f"🗄️ Exported entire database to {output_file}")
     else:
-        print(f"Unsupported export format: {export_format}")
+        print(f"❌ Unsupported export format: {export_format}")
         sys.exit(1)
 
 if __name__ == '__main__':
@@ -62,13 +61,13 @@ if __name__ == '__main__':
     connection_string = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
     engine = create_engine(connection_string)
 
-    print("Export der Artikeltabelle")
-    print("Wählen Sie das Exportformat:")
+    print("Exporting the articles table")
+    print("Choose an export format:")
     print("1: Excel")
     print("2: CSV")
     print("3: JSON")
-    print("4: SQL (gesamte Datenbank)")
-    format_choice = input("Bitte geben Sie 1, 2, 3 oder 4 ein: ").strip()
+    print("4: SQL (entire database)")
+    format_choice = input("Please enter 1, 2, 3, or 4: ").strip()
     if format_choice == "1":
         export_format = "excel"
     elif format_choice == "2":
@@ -78,7 +77,7 @@ if __name__ == '__main__':
     elif format_choice == "4":
         export_format = "sql"
     else:
-        print("Ungültige Auswahl. Es wird Excel verwendet.")
+        print("Invalid choice. Excel will be used.")
         export_format = "excel"
 
     export_articles(engine, export_format)
