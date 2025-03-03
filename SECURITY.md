@@ -11,4 +11,4 @@
 
 ## Reporting a Vulnerability
 
-Please contact server(at)schächner.de
+Please contact server@schächner.de
