@@ -192,7 +192,9 @@ Please create a pull request or contact us via server@schächner.de
 ![image](https://github.com/user-attachments/assets/ce6ceae0-bdf4-499c-9577-973017bb1eff)
 
 
+![image](https://github.com/user-attachments/assets/3affd472-8475-4534-99e6-54500493418c)
 
+![image](https://github.com/user-attachments/assets/9cc4f8f9-505f-4ee1-a989-e6d3683db555)
 
 ---
 
