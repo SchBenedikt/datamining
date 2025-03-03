@@ -1,3 +1,4 @@
 articles_export.csv filter=lfs diff=lfs merge=lfs -text
 articles_export.xlsx filter=lfs diff=lfs merge=lfs -text
 articles_export.json filter=lfs diff=lfs merge=lfs -text
+database_export.sql filter=lfs diff=lfs merge=lfs -text

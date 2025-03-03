@@ -1,12 +1,12 @@
 """
-Crawling-Skript für Heise-News.
+Crawling script for Heise News.
 
-• Stellt sicher, dass eine articles-Tabelle (mit dynamischen Spalten für alternative URLs)
-  und eine crawl_state-Tabelle existieren.
-• Lädt und speichert den Fortschritt (Jahr, Monat und Artikel-Index) in der Datenbank.
-• Extrahiert Artikeldetails über BeautifulSoup und fügt sie (bzw. aktualisiert sie) in die Datenbank ein.
-• Gibt während des Crawlings farbige Statusmeldungen (inklusive Datum und Uhrzeit) aus.
-• Bei Fehlern wird eine E-Mail über send_notification gesendet.
+• Ensures that an "articles" table (with dynamic columns for alternative URLs)
+  and a "crawl_state" table exist.
+• Loads and saves the progress (year, month, and article index) in the database.
+• Extracts article details using BeautifulSoup and inserts (or updates) them into the database.
+• Outputs colorful status messages (including date and time) during the crawl.
+• Sends an email via send_notification in case of errors.
 """
 
 import os
@@ -18,9 +18,9 @@ from psycopg2.extras import Json
 from pyfiglet import figlet_format
 from notification import send_notification
 from datetime import datetime
-from dotenv import load_dotenv  # hinzugefügt
+from dotenv import load_dotenv  # added
 
-load_dotenv()  # hinzugefügt
+load_dotenv()  # added
 
 # PostgreSQL connection details
 db_params = {
@@ -32,16 +32,16 @@ db_params = {
 }
 
 def connect_db():
-    """Stellt eine Verbindung zur Datenbank her."""
+    """Establishes a connection to the database."""
     try:
         conn = psycopg2.connect(**db_params)
         return conn
     except Exception as e:
-        print_status(f"DB-Verbindungsfehler: {e}", "ERROR")
+        print_status(f"DB connection error: {e}", "ERROR")
         raise
 
 def print_status(message, level="INFO"):
-    """Gibt eine formatierte Statusmeldung (mit aktuellem Datum/Uhrzeit) in der Konsole aus."""
+    """Prints a formatted status message (with current date/time) to the console."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     colors = {
         "INFO": "\033[92m",
@@ -55,7 +55,7 @@ def print_status(message, level="INFO"):
 # DATABASE SETUP FUNCTIONS
 # ----------------------------------------------------------------
 def create_table(conn):
-    """Erstellt die 'articles'-Tabelle, falls nicht vorhanden."""
+    """Creates the 'articles' table if it does not exist."""
     with conn.cursor() as cur:
         cur.execute('''
             CREATE TABLE IF NOT EXISTS articles (
@@ -75,8 +75,8 @@ def create_table(conn):
 
 def ensure_language_columns(conn, languages):
     """
-    Stellt sicher, dass für jede Sprache in 'languages'
-    eine entsprechende Spalte in der 'articles'-Tabelle existiert.
+    Ensures that for each language in 'languages'
+    a corresponding column exists in the 'articles' table.
     """
     with conn.cursor() as cur:
         cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'articles';")
@@ -88,7 +88,7 @@ def ensure_language_columns(conn, languages):
             conn.commit()
 
 def create_crawl_state_table(conn):
-    """Erstellt die 'crawl_state'-Tabelle zur Fortschrittsspeicherung."""
+    """Creates the 'crawl_state' table for storing the crawling progress."""
     with conn.cursor() as cur:
         cur.execute('''
             CREATE TABLE IF NOT EXISTS crawl_state (
@@ -101,14 +101,14 @@ def create_crawl_state_table(conn):
         conn.commit()
 
 def get_crawl_state(conn):
-    """Liest den gespeicherten Crawl-Fortschritt; gibt (year, month, article_index) oder None zurück."""
+    """Reads the stored crawl progress; returns (year, month, article_index) or None."""
     with conn.cursor() as cur:
         cur.execute("SELECT year, month, article_index FROM crawl_state WHERE id = 1;")
         row = cur.fetchone()
     return row if row else None
 
 def update_crawl_state(conn, year, month, article_index):
-    """Aktualisiert oder speichert den aktuellen Crawl-Status in der Datenbank."""
+    """Updates or saves the current crawl status in the database."""
     with conn.cursor() as cur:
         cur.execute(
             """INSERT INTO crawl_state (id, year, month, article_index)
@@ -123,16 +123,16 @@ def update_crawl_state(conn, year, month, article_index):
 # ----------------------------------------------------------------
 def get_article_details(url):
     """
-    Extrahiert Details eines Artikels von der übergebenen URL:
-      - Autor(en), Kategorie, Schlüsselwörter, Wortanzahl,
-      - Editor-Abkürzung, Seitenname,
-      - Alternative Links (als Dictionary, nach Sprache)
-    Gibt ein Tuple zurück.
+    Extracts details of an article from the given URL:
+      - Author(s), category, keywords, word count,
+      - Editor abbreviation, site name,
+      - Alternative links (as a dictionary, keyed by language)
+    Returns a tuple.
     """
     response = requests.get(url)
     soup = BeautifulSoup(response.content, 'html.parser')
 
-    # Editor-Abkürzung ermitteln
+    # Determine editor abbreviation
     editor_abbr = "N/A"
     editor_span = soup.find("span", class_="redakteurskuerzel")
     if editor_span:
@@ -147,13 +147,13 @@ def get_article_details(url):
                 else:
                     editor_abbr = abbr_link.text
 
-    # Seitenname ermitteln
+    # Determine site name
     site_name = "N/A"
     site_name_meta = soup.find("meta", property="og:site_name")
     if site_name_meta and site_name_meta.get("content"):
         site_name = site_name_meta["content"]
 
-    # Alternative URLs extrahieren und nach Sprache sortieren
+    # Extract alternative URLs and sort by language
     alternate_links = soup.find_all("link", rel="alternate")
     alt_data = {}
     for link_tag in alternate_links:
@@ -169,7 +169,7 @@ def get_article_details(url):
                 continue
             alt_data[lang] = href
 
-    # LD+JSON Daten extrahieren
+    # Extract LD+JSON data
     script_tag = soup.find("script", type="application/ld+json")
     if not script_tag:
         return "N/A", "N/A", "N/A", None, editor_abbr, site_name, alt_data
@@ -186,9 +186,9 @@ def get_article_details(url):
 
 def insert_article(conn, title, url, date, author, category, keywords, word_count, editor_abbr, site_name, alt_data):
     """
-    Fügt einen Artikel in die 'articles'-Tabelle ein oder aktualisiert diesen,
-    falls bereits ein Eintrag mit der gleichen URL existiert.
-    Dynamisch werden Spalten für alternative URLs hinzugefügt.
+    Inserts an article into the 'articles' table or updates it,
+    if an entry with the same URL already exists.
+    Dynamically adds columns for alternative URLs.
     """
     replaced = False
     with conn.cursor() as cur:
@@ -224,11 +224,11 @@ def insert_article(conn, title, url, date, author, category, keywords, word_coun
 # ----------------------------------------------------------------
 def crawl_heise(initial_year=2025, initial_month=3):
     """
-    Startet den Crawl-Prozess für Heise-News.
-    Lädt den gespeicherten Fortschritt (Jahr, Monat, Artikel-Index) und setzt dort fort.
-    Extrahiert alle Artikel einer Archivseite, überprüft auf doppelte URLs und 
-    warnt, wenn an einem Tag weniger als 10 Artikel gefunden wurden.
-    Navigiert danach zur vorherigen Archivseite.
+    Starts the crawl process for Heise News.
+    Loads the stored progress (year, month, article index) and resumes from there.
+    Extracts all articles from an archive page, checks for duplicate URLs and 
+    warns when fewer than 10 articles are found on a day.
+    Then navigates to the previous archive page.
     """
     conn = connect_db()
     create_table(conn)
@@ -236,32 +236,32 @@ def crawl_heise(initial_year=2025, initial_month=3):
     state = get_crawl_state(conn)
     if state:
         year, month, article_index = state
-        print_status(f"Wiederaufnahme Crawling ab: {year}/{month:02d}, Artikel-ID {article_index}", "INFO")
+        print_status(f"Resuming crawl from: {year}/{month:02d}, article index {article_index}", "INFO")
     else:
         year, month, article_index = initial_year, initial_month, 0
         update_crawl_state(conn, year, month, article_index)
-        print_status(f"Startcrawl ab: {year}/{month:02d}", "INFO")
-        # Sende Benachrichtigung, dass das Crawling erfolgreich gestartet wurde
-        send_notification("Crawling gestartet", f"Crawling erfolgreich gestartet: {year}/{month:02d}", os.getenv('ALERT_EMAIL'))
+        print_status(f"Starting crawl from: {year}/{month:02d}", "INFO")
+        # Send notification that crawling has started successfully
+        send_notification("Crawling started", f"Crawling successfully started: {year}/{month:02d}", os.getenv('ALERT_EMAIL'))
     conn.close()
 
     while True:
         conn = connect_db()
         archive_url = f"https://www.heise.de/newsticker/archiv/{year}/{month:02d}"
-        print_status(f"Crawle URL: {archive_url}", "INFO")
+        print_status(f"Crawling URL: {archive_url}", "INFO")
         try:
             response = requests.get(archive_url)
             response.raise_for_status()
         except Exception as e:
-            print_status(f"HTTP-Fehler beim Abrufen von {archive_url}: {e}", "ERROR")
-            send_notification("Crawling Fehler", f"HTTP-Fehler: {e}", os.getenv('ALERT_EMAIL'))
+            print_status(f"HTTP error fetching {archive_url}: {e}", "ERROR")
+            send_notification("Crawling Error", f"HTTP error: {e}", os.getenv('ALERT_EMAIL'))
             conn.close()
             break
 
         soup = BeautifulSoup(response.content, 'html.parser')
         articles = soup.find_all('article')
 
-        # Integrity Checks: Gruppiere Artikel nach Datum
+        # Integrity Checks: Group articles by date
         articles_by_date = {}
         date_counts = {}
         for a in articles:
@@ -273,26 +273,26 @@ def crawl_heise(initial_year=2025, initial_month=3):
             articles_by_date.setdefault(d, []).append(a)
             date_counts[d] = date_counts.get(d, 0) + 1
 
-        # Überprüfe jeden Tag auf Anzahl der Artikel
+        # Check each day for article count
         for d, count in date_counts.items():
             if count < 10:
-                warn_msg = f"Warnung: Am {d} wurden nur {count} Artikel gefunden!"
+                warn_msg = f"Warning: Only {count} articles found on {d}!"
                 print_status(warn_msg, "WARNING")
                 if d != datetime.now().strftime("%Y-%m-%d"):
-                    send_notification("Crawling Warnung", warn_msg, os.getenv('ALERT_EMAIL', 'admin@example.com'))
+                    send_notification("Crawling Warning", warn_msg, os.getenv('ALERT_EMAIL', 'admin@example.com'))
 
         if not articles:
-            print_status(f"Keine Artikel gefunden für {year}-{month:02d}. Beende Crawl.", "WARNING")
+            print_status(f"No articles found for {year}-{month:02d}. Stopping crawl.", "WARNING")
             update_crawl_state(conn, year, month, 0)
             conn.close()
             break
 
-        print_status(f"Gefundene Artikel (insgesamt): {len(articles)}", "INFO")
+        print_status(f"Found articles (total): {len(articles)}", "INFO")
         
-        # Verarbeite Artikel tagweise
+        # Process articles day by day
         for day in sorted(articles_by_date.keys()):
             day_articles = articles_by_date[day]
-            print_status(f"Verarbeite {len(day_articles)} Artikel für den Tag {day}", "INFO")
+            print_status(f"Processing {len(day_articles)} articles for date {day}", "INFO")
             for article in day_articles:
                 try:
                     title = article.find('h3').get_text(strip=True)
@@ -301,7 +301,7 @@ def crawl_heise(initial_year=2025, initial_month=3):
                     if not link.startswith("http"):
                         link = "https://www.heise.de" + link
                     if "${" in link:
-                        print_status(f"Überspringe Artikel mit ungültigem Link: {link}", "WARNING")
+                        print_status(f"Skipping article with invalid link: {link}", "WARNING")
                         continue
 
                     time_element = article.find('time')
@@ -309,20 +309,20 @@ def crawl_heise(initial_year=2025, initial_month=3):
                     author, category, keywords, word_count, editor_abbr, site_name, alt_data = get_article_details(link)
                     replaced = insert_article(conn, title, link, date, author, category, keywords, word_count, editor_abbr, site_name, alt_data)
                     if replaced:
-                        print_status(f"{date} - {title} bereits vorhanden", "INFO")
+                        print_status(f"{date} - {title} already exists", "INFO")
                     else:
                         print_status(f"{date} - {title}", "INFO")
                 except Exception as e:
-                    error_msg = f"Fehler bei Artikel {link}: {e}"
+                    error_msg = f"Error processing article {link}: {e}"
                     print_status(error_msg, "ERROR")
-                    send_notification("Crawling Fehler", error_msg, os.getenv('ALERT_EMAIL', 'server@xn--schchner-2za.de'))
+                    send_notification("Crawling Error", error_msg, os.getenv('ALERT_EMAIL', 'server@xn--schchner-2za.de'))
                     continue
-            # Nach Abschluss des Tages: Fortschritt aktualisieren
+            # After finishing the day's articles: update progress
             update_crawl_state(conn, year, month, 0)
             
         conn.close()
 
-        # Navigationslogik: Wechsle zur vorherigen Archivseite
+        # Navigation logic: Move to the previous archive page
         if month == 1:
             year -= 1
             month = 12
@@ -333,11 +333,11 @@ def crawl_heise(initial_year=2025, initial_month=3):
             formatted_text = figlet_format(f"{year}, {month:02d}")
             print(f"\033[1m{formatted_text}\033[0m")
         except Exception as e:
-            print_status(f"Fehler bei der Anzeige: {e}", "ERROR")
+            print_status(f"Error displaying text: {e}", "ERROR")
 
 if __name__ == '__main__':
     import threading
-    # Startet die API in einem separaten Daemon-Thread
+    # Start the API in a separate daemon thread
     threading.Thread(
         target=lambda: __import__('api').app.run(debug=True, port=6600, use_reloader=False),
         daemon=True
@@ -345,4 +345,4 @@ if __name__ == '__main__':
     try:
         crawl_heise()
     except KeyboardInterrupt:
-        print_status("Crawling unterbrochen.", "WARNING")
+        print_status("Crawling interrupted.", "WARNING")
