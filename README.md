@@ -1,12 +1,3 @@
-<table>
-  <tr>
-    <!-- Linke Spalte: Bild -->
-    <td style="vertical-align: top; width: 50%;">
-      <img src="https://github.com/user-attachments/assets/ed4295d3-caf5-4e44-9014-b7b8399a7b65" alt="Web Crawler - visual selection-2" style="display: block; margin-top: 0; max-width:100%;">
-    </td>
-    <!-- Rechte Spalte: Text -->
-    <td style="vertical-align: top; width: 50%;">
-
 # 🌍 Purpose & Functionality
 
 The **Heise News Crawler** is designed to automatically extract and store news articles from Heise's archive. The primary goals are:
@@ -119,7 +110,6 @@ Exported articles are saved in the current directory.
 
 
 
-</table>
 
 ---
 
