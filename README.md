@@ -30,7 +30,7 @@ Also an API endpoint is provided that can display the crawled data and statistic
 Install required Python libraries:
 
 ```sh
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 ```
 
 ### 3️⃣ Create `.env` File
