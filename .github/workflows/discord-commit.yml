@@ -17,4 +17,4 @@ jobs:
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
           embed: '{ "title": "{{ commit.title }}", "description": "{{ commit.description }}", "url": "{{ commit.url }}", "author": { "name": "{{ commit.author.name }}", "icon_url": "https://github.com/{{ commit.author.username }}.png" } }'
-          include-extras: true
+          include-extras: false
