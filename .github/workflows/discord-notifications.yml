@@ -1,13 +1,6 @@
-name: Discord Notifications
+name: Discord Benachrichtigungen
 
 on:
-  pull_request:
-    types:
-      - opened
-      - closed
-  release:
-    types:
-      - created
   push:
     branches:
       - main
@@ -17,14 +10,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Send Notification to Discord
-        uses: Ilshidur/action-discord@master
+      - name: Sende Benachrichtigung an Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@0.3.2
         with:
-          entryPoint: "discord"
           args: |
-            --url ${{ secrets.DISCORD_WEBHOOK }}
-            --content |
-              **Event**: ${{ github.event_name }}
-              **Repository**: ${{ github.repository }}
-              **User**: ${{ github.actor }}
-              **URL**: ${{ github.event.pull_request.html_url || github.event.release.html_url || github.event.head_commit.url }}
+            **Event**: ${{ github.event_name }}
+            **Repository**: ${{ github.repository }}
+            **Benutzer**: ${{ github.actor }}
+            **URL**: ${{ github.event.head_commit.url }}
