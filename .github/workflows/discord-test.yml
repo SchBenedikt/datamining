@@ -1,0 +1,17 @@
+name: Test Discord Notification
+
+on:
+  pull_request:
+    types:
+      - opened
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Test Notification to Discord
+        run: |
+          curl -X POST -H "Content-Type: application/json" \
+          -d '{"content": "Pull Request geöffnet!"}' \
+          ${{ secrets.DISCORD_WEBHOOK_URL }}
