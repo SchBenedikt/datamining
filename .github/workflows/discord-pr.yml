@@ -1,9 +1,8 @@
-name: Discord Benachrichtigungen
+name: Pull Request Benachrichtigungen
 
 on:
   pull_request:
     types: [opened, closed, reopened]
-  push:
     branches:
       - main
 
@@ -16,13 +15,14 @@ jobs:
         uses: stegzilla/discord-notify@v4
         with:
           webhook_url: ${{ secrets.DISCORD_WEBHOOK }}
-          title: ${{ github.event_name }} Benachrichtigung
+          title: Pull Request Benachrichtigung
           message: |
             **Ereignis**: ${{ github.event_name }}
             **Repository**: ${{ github.repository }}
             **Benutzer**: ${{ github.actor }}
-            **URL**: ${{ github.event.pull_request.html_url || github.event.head_commit.url }}
+            **URL**: ${{ github.event.pull_request.html_url }}
+            **Beschreibung**: ${{ github.event.pull_request.body }}
           include_image: true
           username: GitHub
           avatar_url: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
-          colour: '#3371FF'
+          colour: '#FF5733'
