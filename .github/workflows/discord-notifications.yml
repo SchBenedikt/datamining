@@ -13,29 +13,11 @@ jobs:
 
     steps:
       - name: Sende Benachrichtigung an Discord
-        uses: stegzilla/discord-notify@v4
+        uses: tenzin1308/discord-notify@v1.0.0
         with:
-          webhook_url: ${{ secrets.DISCORD_WEBHOOK }}
-          title: ${{ github.event_name }} Benachrichtigung
-          message: |
-            **Ereignis**: ${{ github.event_name }}
-            **Repository**: ${{ github.repository }}
-            **Benutzer**: ${{ github.actor }}
-            **URL**: ${{ github.event.pull_request.html_url || github.event.head_commit.url }}
-            {{#if github.event.pull_request}}
-            **Pull Request Beschreibung**:
-            ```
-            ${{ github.event.pull_request.body }}
-            ```
-            {{/if}}
-            {{#if github.event.head_commit}}
-            **Commit Nachricht**:
-            ```
-            ${{ github.event.head_commit.message }}
-            ```
-            {{/if}}
-          include_image: true
-          username: GitHub
-          avatar_url: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
-          colour: '#3371FF'
-
+          discord-webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          github-repo-owner: ${{ github.repository_owner }}
+          github-repo-name: ${{ github.repository_name }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
