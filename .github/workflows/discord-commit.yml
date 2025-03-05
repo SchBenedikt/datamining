@@ -14,5 +14,5 @@ jobs:
         uses: Sniddl/discord-commits@v1.6
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          template: "discord-commits"
+          template: "discord-commits-design"
           include-extras: false
