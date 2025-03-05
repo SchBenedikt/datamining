@@ -18,10 +18,11 @@ jobs:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
           message: |
             **Commit Details:**
-            - **Repository:** {{ github.repository }}
-            - **Committer:** {{ commit.author.name }} ({{ commit.author.username }})
-            - **Commit Message:** {{ commit.title }}
-            - **Description:** {{ commit.description }}
-            - **URL:** [Commit URL]({{ commit.url }})
-            - **Changes:** {{ github.event.compare }}
-          include-extras: false
+            Repository: {{ github.repository }}
+            Committer: {{ commit.author.name }} ({{ commit.author.username }})
+            Commit Message: {{ commit.title }}
+            Description: {{ commit.description }}
+            URL: [Commit URL]({{ commit.url }})
+            Changes: {{ github.event.compare }}
+          last-commit-only: true
+          include-extras: true
