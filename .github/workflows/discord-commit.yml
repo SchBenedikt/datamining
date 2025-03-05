@@ -1,50 +1,23 @@
-name: Commit Benachrichtigungen
+name: Pull-Request Benachrichtigungen
 
 on:
-  push:
-    branches:
-      - main
+  pull_request:
+    types:
+      - opened
+      - closed
 
 jobs:
   notify:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Sende Commit-Benachrichtigung an Discord
-        uses: Sniddl/discord-commits@v1.6
+      - name: Sende Pull-Request-Benachrichtigung an Discord
+        uses: Ilshidur/action-discord@0.3.2
         with:
-          webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          template: "avatar-with-link"
-          include-extras: true
-          message: |
+          url: ${{ secrets.DISCORD_WEBHOOK }}
+          content: |
+            **Event**: ${{ github.event_name }}
             **Repository**: ${{ github.repository }}
-            **Branch**: ${{ github.ref }}
-            **Committer**: ${{ github.actor }}
-            **Commit-Nachricht**: ${{ github.event.head_commit.message }}
-            **Änderungen**:
-            ${{ github.event.head_commit.added }}
-            ${{ github.event.head_commit.modified }}
-            ${{ github.event.head_commit.removed }}
-          embed: |
-            {
-              "title": "Commit von {{ commit.author.name }}",
-              "description": "{{ commit.description }}",
-              "url": "{{ commit.url }}",
-              "author": {
-                "name": "{{ commit.author.name }}",
-                "icon_url": "https://github.com/{{ commit.author.username }}.png"
-              },
-              "fields": [
-                {
-                  "name": "Commit Hash",
-                  "value": "{{ commit.hash }}",
-                  "inline": true
-                },
-                {
-                  "name": "Geänderte Dateien",
-                  "value": "{{ commit.modified }}",
-                  "inline": true
-                }
-              ]
-            }
-          last-commit-only: true
+            **User**: ${{ github.actor }}
+            **URL**: ${{ github.event.pull_request.html_url }}
+            **Beschreibung**: ${{ github.event.pull_request.body }}
