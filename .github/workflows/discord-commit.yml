@@ -3,7 +3,7 @@ name: Discord Commits
 on:
   push:
     branches:
-      - main  # Passen Sie dies an den Namen Ihres Hauptbranches an
+      - main  # Passen Sie dies an den Namen Ihdfres Hauptbranches an
 
 jobs:
   discord_notify:
