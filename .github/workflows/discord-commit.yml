@@ -16,5 +16,12 @@ jobs:
         uses: Sniddl/discord-commits@v1.6
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          embed: '{ "title": "{{ commit.title }}", "description": "{{ commit.description }}", "url": "{{ commit.url }}", "author": { "name": "{{ commit.author.name }}", "icon_url": "https://github.com/{{ commit.author.username }}.png" } }'
+          message: |
+            **Commit Details:**
+            - **Repository:** {{ github.repository }}
+            - **Committer:** {{ commit.author.name }} ({{ commit.author.username }})
+            - **Commit Message:** {{ commit.title }}
+            - **Description:** {{ commit.description }}
+            - **URL:** [Commit URL]({{ commit.url }})
+            - **Changes:** {{ github.event.compare }}
           include-extras: false
