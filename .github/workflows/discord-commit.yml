@@ -16,6 +16,5 @@ jobs:
         uses: Sniddl/discord-commits@v1.6
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          template: "avatar-with-link"
           embed: '{ "title": "{{ commit.title }}", "description": "{{ commit.description }}", "url": "{{ commit.url }}", "author": { "name": "{{ commit.author.name }}", "icon_url": "https://github.com/{{ commit.author.username }}.png" } }'
           include-extras: true
