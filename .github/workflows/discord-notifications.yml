@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Send Notification to Discord
-        uses: peter-evans/discord-webhook@v1
+        uses: Ilshidur/action-discord@v1
         with:
           url: ${{ secrets.DISCORD_WEBHOOK_URL }}
           content: |
