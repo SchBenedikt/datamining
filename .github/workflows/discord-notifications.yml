@@ -18,9 +18,11 @@ jobs:
 
     steps:
       - name: Send Notification to Discord
-        run: |
-          curl -X POST -H "Content-Type: application/json" \
-          -d '{
-                "content": "**Event**: '${{ github.event_name }}'\n**Repository**: '${{ github.repository }}'\n**User**: '${{ github.actor }}'\n**URL**: '${{ github.event.pull_request.html_url || github.event.release.html_url || github.event.head_commit.url }}"
-              }' \
-          ${{ secrets.DISCORD_WEBHOOK_URL }}
+        uses: Ilshidur/action-discord@master
+        with:
+          url: ${{ secrets.DISCORD_WEBHOOK }}
+          content: |
+            **Event**: ${{ github.event_name }}
+            **Repository**: ${{ github.repository }}
+            **User**: ${{ github.actor }}
+            **URL**: ${{ github.event.pull_request.html_url || github.event.release.html_url || github.event.head_commit.url }}
