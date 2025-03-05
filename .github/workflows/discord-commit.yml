@@ -14,13 +14,33 @@ jobs:
         uses: Sniddl/discord-commits@v1.6
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          message: |
-            **Repository**: {{ github.repository }}
-            **Branch**: {{ github.ref }}
-            **Committer**: {{ commit.author.name }}
-            **Datum**: {{ commit.timestamp }}
-            **Dateien**:
-            {% for file in commit.files %}
-              - {{ file.filename }}
-            {% endfor %}
-          embed: true
+          template: |
+            {
+              "embed": {
+                "title": "{{ commit.title }}",
+                "description": "{{ commit.description }}",
+                "url": "{{ commit.url }}",
+                "author": {
+                  "name": "{{ commit.author.name }}",
+                  "icon_url": "https://github.com/{{ commit.author.username }}.png"
+                },
+                "fields": [
+                  {
+                    "name": "Committer",
+                    "value": "{{ commit.author.name }}",
+                    "inline": true
+                  },
+                  {
+                    "name": "Datum",
+                    "value": "{{ commit.timestamp }}",
+                    "inline": true
+                  },
+                  {
+                    "name": "Dateien",
+                    "value": "{% for file in commit.files %}- {{ file.filename }}{% endfor %}",
+                    "inline": false
+                  }
+                ]
+              }
+            }
+          include-extras: false
