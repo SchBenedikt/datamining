@@ -1,0 +1,4 @@
+{
+  "embed": false,
+  "message": "**Commit-Informationen:**\n\n**Autor:** {{ commit.author.name }}\n**Datum:** {{ commit.timestamp }}\n**Beschreibung:** {{ commit.message }}\n**Betroffene Dateien:**\n{{ commit.files | join: '\n' }}"
+}
