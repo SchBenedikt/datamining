@@ -1,5 +1,6 @@
 # 🌍 Purpose & Functionality
 
+
 The **Heise News Crawler** is designed to automatically extract and store news articles from Heise's archive. The primary goals are:
 
 - 📡 **Data Collection:** Gather historical news articles from Heise.de.
