@@ -10,19 +10,19 @@ def export_articles(engine, export_format):
     if export_format == "excel":
         query = "SELECT * FROM articles"
         df = pd.read_sql_query(query, engine)
-        output_file = "articles_export.xlsx"
+        output_file = "data/articles_export.xlsx"
         df.to_excel(output_file, index=False)
         print(f"📊 Exported articles table to {output_file}")
     elif export_format == "csv":
         query = "SELECT * FROM articles"
         df = pd.read_sql_query(query, engine)
-        output_file = "articles_export.csv"
+        output_file = "data/articles_export.csv"
         df.to_csv(output_file, index=False)
         print(f"📝 Exported articles table to {output_file}")
     elif export_format == "json":
         query = "SELECT * FROM articles"
         df = pd.read_sql_query(query, engine)
-        output_file = "articles_export.json"
+        output_file = "data/articles_export.json"
         df.to_json(output_file, orient="records")
         print(f"🔣 Exported articles table to {output_file}")
     elif export_format == "sql":
