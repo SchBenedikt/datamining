@@ -43,4 +43,4 @@ jobs:
                 ]
               }
             }
-          include-extras: false
+          include-extras: true
