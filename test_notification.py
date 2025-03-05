@@ -4,7 +4,7 @@ from notification import send_notification
 def main():
     subject = "Test Email"
     body = "Dies ist eine Testnachricht."
-    # Verwende die in .env gespeicherte E-Mail-Adresse
+    # use.env for ALERT_EMAIL
     to_email = os.getenv('ALERT_EMAIL')
     send_notification(subject, body, to_email)
 
