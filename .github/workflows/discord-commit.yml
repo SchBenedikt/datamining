@@ -1,22 +1,22 @@
-name: Discord
-
-on: 
-  - push
+name: Discord Commits
+on:
+  push:
+    branches:
+      - main  # Passen Sie dies an den Namen Ihres Hauptbranches an
 
 jobs:
-  disord_test_message:
+  discord_notify:
     runs-on: ubuntu-latest
-    name: discord commits
-    uses: Sniddl/discord-commits@v1.6
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Send message to discord
+      - name: Sende Nachricht an Discord
+        uses: Sniddl/discord-commits@v1.6
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
           template: 'avatar-with-link'
           include-extras: true
-          # message: "Successful commit to **{{ github.context.payload.repository.owner.name }}/{{ github.context.payload.repository.name}}**.\nDiff: {{ github.context.payload.compare }}"
-          # embed: '{ "title": "{{ commit.title }}", "description": "{{ commit.description }}", "url": "{{ commit.url }}", "author": { "name": "{{ commit.author.name }} ({{ commit.author.username }})", "icon_url": "https://github.com/{{ commit.author.username }}.png"} }'
-          # last-commit-only: true
+          message: "Erfolgreicher Commit im Repository **{{ github.repository }}**.\nDiff: {{ github.event.compare }}"
+          embed: '{ "title": "{{ commit.title }}", "description": "{{ commit.description }}", "url": "{{ commit.url }}", "author": { "name": "{{ commit.author.name }} ({{ commit.author.username }})", "icon_url": "https://github.com/{{ commit.author.username }}.png"} }'
+          last-commit-only: true
