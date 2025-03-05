@@ -1,6 +1,8 @@
 name: Discord Benachrichtigungen
 
 on:
+  pull_request:
+    types: [opened, closed, reopened]
   push:
     branches:
       - main
@@ -11,12 +13,17 @@ jobs:
 
     steps:
       - name: Sende Benachrichtigung an Discord
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        uses: Ilshidur/action-discord@0.3.2
+        uses: stegzilla/discord-notify@v4
         with:
-          args: |
-            **Event**: ${{ github.event_name }}
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK }}
+          title: ${{ github.event_name }} Benachrichtigung
+          message: |
+            **Ereignis**: ${{ github.event_name }}
             **Repository**: ${{ github.repository }}
             **Benutzer**: ${{ github.actor }}
-            **URL**: ${{ github.event.head_commit.url }}
+            **URL**: ${{ github.event.pull_request.html_url || github.event.head_commit.url }}
+          include_image: true
+          username: GitHub
+          avatar_url: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
+          colour: '#3371FF'
+
