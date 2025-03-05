@@ -12,7 +12,6 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Send message to discord
-        uses: ./ # Uses an action in the root directory
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
           template: 'avatar-with-link'
