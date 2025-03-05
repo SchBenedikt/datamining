@@ -11,7 +11,7 @@ def parse_date(s):
         return pd.to_datetime(s, format='%Y-%m-%dT%H:%M:%S').tz_localize('UTC')
 
 # Daten laden
-df = pd.read_excel("data/articles_export.xlsx")
+df = pd.read_excel("articles_export.xlsx")
 
 # Konvertiere die 'date' Spalte in datetime
 df['date'] = df['date'].apply(parse_date)

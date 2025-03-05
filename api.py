@@ -1,11 +1,5 @@
 import os
 import psycopg2
-<<<<<<< Updated upstream
-from flask import Flask, jsonify, render_template, redirect, url_for, request
-from dotenv import load_dotenv  # hinzugefügt
-
-load_dotenv()  # hinzugefügt
-=======
 import networkx as nx
 import plotly.graph_objects as go
 import plotly.express as px
@@ -16,7 +10,10 @@ import tempfile
 from dash import Dash, html, dcc
 from flask import Flask, render_template, request, send_file, redirect, url_for
 from werkzeug.utils import secure_filename
->>>>>>> Stashed changes
+from dotenv import load_dotenv  # hinzugefügt
+
+load_dotenv()  # hinzugefügt
+
 
 # Datenbank und Autoren-Netzwerk
 db_params = {
@@ -40,8 +37,6 @@ def get_author_network():
         print("Error fetching authors:", e)
         rows = []
 
-<<<<<<< Updated upstream
-=======
     authors_dict = {}
     all_authors = set()
     
@@ -250,6 +245,5 @@ def export_db():
     except Exception as e:
         return str(e)
 
->>>>>>> Stashed changes
 if __name__ == "__main__":
     app.run_server(debug=True, host="0.0.0.0", port=6800)
