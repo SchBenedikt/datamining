@@ -1,0 +1,25 @@
+name: Discord Notifications
+
+on:
+  pull_request:
+    types:
+      - opened
+      - closed
+  release:
+    types:
+      - created
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Notification to Discord
+        uses: peter-evans/discord-webhook@v1
+        with:
+          url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          content: |
+            **Event**: ${{ github.event_name }}
+            **Repository**: ${{ github.repository }}
+            **User**: ${{ github.actor }}
+            **URL**: ${{ github.event.pull_request.html_url || github.event.release.html_url }}
