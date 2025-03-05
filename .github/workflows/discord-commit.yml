@@ -14,5 +14,13 @@ jobs:
         uses: Sniddl/discord-commits@v1.6
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          template: "discord-commits-design"
-          include-extras: false
+          message: |
+            **Repository**: {{ github.repository }}
+            **Branch**: {{ github.ref }}
+            **Committer**: {{ commit.author.name }}
+            **Datum**: {{ commit.timestamp }}
+            **Dateien**:
+            {% for file in commit.files %}
+              - {{ file.filename }}
+            {% endfor %}
+          embed: false
