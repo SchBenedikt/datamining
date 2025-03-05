@@ -12,12 +12,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Sende Nachricht an Discord
+      - name: Discord Commits
         uses: Sniddl/discord-commits@v1.6
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          template: 'avatar-with-link'
+          template: "avatar-with-link"
+          embed: '{ "title": "{{ commit.title }}", "description": "{{ commit.description }}", "url": "{{ commit.url }}", "author": { "name": "{{ commit.author.name }}", "icon_url": "https://github.com/{{ commit.author.username }}.png" } }'
           include-extras: true
-          message: "Erfolgreicher Commit im Repository {{ github.repository }}.\nDiff: {{ github.event.compare }}"
-          embed: '{ "title": "{{ commit.title }}", "description": "{{ commit.description }}", "url": "{{ commit.url }}", "author": { "name": "{{ commit.author.name }} ({{ commit.author.username }})", "icon_url": "https://github.com/{{ commit.author.username }}.png"} }'
-          last-commit-only: true
