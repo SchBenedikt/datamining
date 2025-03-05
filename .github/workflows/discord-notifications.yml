@@ -22,8 +22,11 @@ jobs:
             **Repository**: ${{ github.repository }}
             **Benutzer**: ${{ github.actor }}
             **URL**: ${{ github.event.pull_request.html_url || github.event.head_commit.url }}
+            **Commit Nachricht**:
+            ```
+            ${{ github.event.head_commit.message }}
+            ```
           include_image: true
           username: GitHub
           avatar_url: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
           colour: '#3371FF'
-
