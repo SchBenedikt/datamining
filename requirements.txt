@@ -1,6 +1,15 @@
 Flask==2.2.2
+dash==2.9.3
+Werkzeug==2.2.3
 requests==2.32.2
 psycopg2-binary==2.9.6
 beautifulsoup4==4.11.1
 pyfiglet==0.8.post1
 python-dotenv==1.0.0
+discord.py==1.7.3
+asyncpg==0.25.0
+networkx==2.8.8
+plotly==5.15.0
+numpy==1.24.2
+pandas==1.5.3
+SQLAlchemy==1.4.46
