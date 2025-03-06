@@ -18,7 +18,8 @@ from psycopg2.extras import Json
 from pyfiglet import figlet_format
 from notification import send_notification
 from datetime import datetime
-from dotenv import load_dotenv  # added
+from dotenv import load_dotenv 
+import pandas as pd
 
 load_dotenv()  # added
 
