@@ -217,8 +217,7 @@ Please create a pull request or contact us via server@schächner.de
 ![image](https://github.com/user-attachments/assets/10c87c9c-d444-487c-992f-73d3d4b4a185)
 
 ### Deepnote:
-[Deepnote](https://deepnote.com/app/schachner/Web-Crawler-d5025a36-3829-4c12-ad2d-b81aa84bd217?utm_source=app-settings&utm_medium=product-embed&utm_campaign=data-app&utm_content=d5025a36-3829-4c12-ad2d-b81aa84bd217&__embedded=true)
-Also some graphs generated with Deepnote (❗ only with Random 10.000 rows ❗)
+We have also generated some graphs with [Deepnote](https://deepnote.com/app/schachner/Web-Crawler-d5025a36-3829-4c12-ad2d-b81aa84bd217?utm_source=app-settings&utm_medium=product-embed&utm_campaign=data-app&utm_content=d5025a36-3829-4c12-ad2d-b81aa84bd217&__embedded=true) (❗ only with Random 10.000 rows ❗)
 
 ![image](https://github.com/user-attachments/assets/ea99ead8-0b48-47d0-8ddc-7c8ce3bd6b53)
 
