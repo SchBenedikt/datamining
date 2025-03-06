@@ -34,7 +34,7 @@ async def get_entry_count():
 async def get_author_count():
     try:
         conn = await asyncpg.connect(**DB_CONFIG)
-        authors = await conn.fetch("SELECT author FROM articles;")  # Ersetze `your_table`
+        authors = await conn.fetch("SELECT author FROM articles;")  
         await conn.close()
 
         author_list = []
