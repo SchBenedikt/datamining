@@ -1,4 +1,9 @@
-[![Schächner Technik](https://discord.com/api/guilds/1346160903304773703/widget.png?style=banner2)](https://discord.com/invite/Q6Nn2z3tUP)
+<a href="https://discord.com/invite/Q6Nn2z3tUP">
+  <img src="https://discord.com/api/guilds/1346160903304773703/widget.png?style=banner2" width="250"/>
+</a>
+<a href="https://deepnote.com/app/schachner/Web-Crawler-d5025a36-3829-4c12-ad2d-b81aa84bd217?utm_source=app-settings&utm_medium=product-embed&utm_campaign=data-app&utm_content=d5025a36-3829-4c12-ad2d-b81aa84bd217&__embedded=true">
+  <img src="https://img.shields.io/badge/Open%20in-Deepnote-blue?style=for-the-badge&logo=deepnote" width="250"/>
+</a>
 
 # 🌍 Purpose & Functionality
 The **Heise News Crawler** is designed to automatically extract and store news articles from Heise's archive. The primary goals are:
