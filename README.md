@@ -1,3 +1,5 @@
+[![Schächner Technik](https://discord.com/api/guilds/1346160903304773703/widget.png?style=banner2)](https://discord.com/invite/Q6Nn2z3tUP)
+
 # 🌍 Purpose & Functionality
 The **Heise News Crawler** is designed to automatically extract and store news articles from Heise's archive. The primary goals are:
 
