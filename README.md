@@ -196,7 +196,7 @@ Please create a pull request or contact us via server@schächner.de
 
 ## 🗂️ Examples
 
-(with Tableu, status March 2025)
+(with Tableu and DeepNote, status March 2025)
 ![image](https://github.com/user-attachments/assets/ce6ceae0-bdf4-499c-9577-973017bb1eff)
 
 
@@ -219,7 +219,7 @@ Please create a pull request or contact us via server@schächner.de
 ![image](https://github.com/user-attachments/assets/ea99ead8-0b48-47d0-8ddc-7c8ce3bd6b53)
 
 
-Check out also the [data/Datamining_Heise web crawler-3.twb](https://github.com/SchBenedikt/datamining/blob/3f3fe413aeff25a1ae024215745ed6fa82fc2add/data/Datamining_Heise%20web%20crawler-3.twb)-file with an excerpt of analyses.
+Check out also the [data/Datamining_Heise web crawler-3.twb](https://github.com/SchBenedikt/datamining/blob/3f3fe413aeff25a1ae024215745ed6fa82fc2add/data/Datamining_Heise%20web%20crawler-3.twb)-file with an excerpt of analyses or [Deepnote](https://deepnote.com/app/schachner/Web-Crawler-d5025a36-3829-4c12-ad2d-b81aa84bd217?utm_source=app-settings&utm_medium=product-embed&utm_campaign=data-app&utm_content=d5025a36-3829-4c12-ad2d-b81aa84bd217&__embedded=true).
 
 ---
 
