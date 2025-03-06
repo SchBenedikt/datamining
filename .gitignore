@@ -170,3 +170,6 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 .env
+.env
+.cache_ggshield
+.env
