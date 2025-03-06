@@ -230,7 +230,7 @@ This program is licensed under **GNU GENERAL PUBLIC LICENSE**
 
 ## 🙋 About us
 
-This project was programmed by both of us within a few days:
+This project was programmed by both of us within a few days and is constantly being further developed:
 - https://github.com/schBenedikt
 - https://github.com/schVinzenz
 
