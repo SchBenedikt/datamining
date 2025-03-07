@@ -147,6 +147,7 @@ If any errors occur, an email notification will be sent.
 
 ## 📂 Project Structure
 
+(old)
 ```
 📂 Heise-News-Crawler
 ├── 📄 .gitignore                 # Git ignore file
