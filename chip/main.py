@@ -228,16 +228,15 @@ def scrape_chip_news():
         print_status(f"Found {len(links)} article links on page {page}.", "INFO")
         
         # Process each article link
-        for link in links:
+        for i, link in enumerate(links, start=article_index):
             full_url = requests.compat.urljoin("https://www.chip.de", link)
             if "${" in full_url:
                 print_status(f"Skipping article with invalid link: {full_url}", "WARNING")
                 continue
             scrape_article_details(conn, full_url)
-        
-        # Update crawl progress after page
-        update_crawl_state(conn, page, 0)
-        
+            article_index = i + 1  # Update article index after processing each article
+            update_crawl_state(conn, page, article_index)  # Update after each article
+
         # Show a banner for the current page
         try:
             formatted_text = figlet_format(f"Page {page}")
@@ -245,8 +244,9 @@ def scrape_chip_news():
         except Exception as e:
             print_status(f"Error displaying banner: {e}", "ERROR")
         
+        # If there are more articles to crawl, increment the page number
         page += 1
-        update_crawl_state(conn, page, 0)
+        update_crawl_state(conn, page, 0)  # Reset article index for the next page
     
     conn.close()
 
