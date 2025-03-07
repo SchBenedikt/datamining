@@ -1,6 +1,6 @@
-Flask==2.2.2
-dash==2.9.3
-Werkzeug==2.2.3
+Flask==2.2.5
+dash==2.15.0
+Werkzeug==3.0.6
 requests==2.32.2
 psycopg2-binary==2.9.6
 beautifulsoup4==4.11.1
