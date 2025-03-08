@@ -7,10 +7,14 @@ import numpy as np
 import pandas as pd
 import sqlite3
 import tempfile
+import requests
+import re
+from bs4 import BeautifulSoup
 from dash import Dash, html, dcc
-from flask import Flask, render_template, request, send_file, redirect, url_for
+from flask import Flask, render_template, request, send_file, redirect, url_for, jsonify
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv  # hinzugefügt
+from datetime import datetime
 
 load_dotenv()  # hinzugefügt
 
@@ -161,12 +165,178 @@ app.layout = html.Div([
     ])
 ], style={"height": "100vh"})
 
-# Neue Flask-Routen für query.html
+# Hilfsfunktionen für den News-Feed
+def get_all_categories():
+    """Holt alle vorhandenen Kategorien aus der Datenbank"""
+    try:
+        conn = psycopg2.connect(**db_params)
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT category FROM articles WHERE category != 'N/A' ORDER BY category;")
+        categories = [row[0] for row in cur.fetchall()]
+        cur.close()
+        conn.close()
+        return categories
+    except Exception as e:
+        print(f"Fehler beim Abrufen der Kategorien: {e}")
+        return []
+
+def search_articles(search_term=None, category=None, author=None, date_from=None, date_to=None, 
+                   sort='date_desc', page=1, per_page=20):
+    """
+    Sucht Artikel basierend auf den angegebenen Kriterien
+    """
+    try:
+        conn = psycopg2.connect(**db_params)
+        cur = conn.cursor()
+        
+        # Basis-Query
+        query = "SELECT title, url, date, author, category, keywords FROM articles WHERE 1=1"
+        count_query = "SELECT COUNT(*) FROM articles WHERE 1=1"
+        params = []
+        
+        # Suchbedingungen hinzufügen
+        if search_term:
+            query += " AND (title ILIKE %s OR keywords ILIKE %s)"
+            count_query += " AND (title ILIKE %s OR keywords ILIKE %s)"
+            search_param = f"%{search_term}%"
+            params.extend([search_param, search_param])
+            
+        if category:
+            query += " AND category = %s"
+            count_query += " AND category = %s"
+            params.append(category)
+            
+        if author:
+            query += " AND author ILIKE %s"
+            count_query += " AND author ILIKE %s"
+            params.append(f"%{author}%")
+            
+        if date_from:
+            query += " AND date >= %s"
+            count_query += " AND date >= %s"
+            params.append(date_from)
+            
+        if date_to:
+            query += " AND date <= %s"
+            count_query += " AND date <= %s"
+            params.append(date_to)
+        
+        # Sortierung
+        if sort == 'date_desc':
+            query += " ORDER BY date DESC"
+        elif sort == 'date_asc':
+            query += " ORDER BY date ASC"
+        elif sort == 'title_asc':
+            query += " ORDER BY title ASC"
+        elif sort == 'title_desc':
+            query += " ORDER BY title DESC"
+        
+        # Gesamtanzahl der Treffer
+        cur.execute(count_query, params)
+        total_count = cur.fetchone()[0]
+        
+        # Paginierung
+        offset = (page - 1) * per_page
+        query += f" LIMIT {per_page} OFFSET {offset}"
+        
+        # Abfrage ausführen
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        
+        articles = []
+        for row in rows:
+            article = {
+                'title': row[0],
+                'url': row[1],
+                'date': row[2],
+                'author': row[3],
+                'category': row[4],
+                'keywords': row[5]
+            }
+            articles.append(article)
+            
+        cur.close()
+        conn.close()
+        
+        return articles, total_count
+        
+    except Exception as e:
+        print(f"Fehler bei der Artikelsuche: {e}")
+        return [], 0
+
+# Berechnung des Paginierungs-Bereichs
+def get_pagination_range(page, total_pages, window=2):
+    """
+    Berechnet einen Bereich von Seitenzahlen für die Paginierung
+    
+    Args:
+        page: Aktuelle Seite
+        total_pages: Gesamtanzahl der Seiten
+        window: Anzahl der anzuzeigenden Seiten vor/nach der aktuellen Seite
+        
+    Returns:
+        Liste mit Seitenzahlen
+    """
+    start_page = max(1, page - window)
+    end_page = min(total_pages, page + window)
+    
+    return list(range(start_page, end_page + 1))
+
+# Neue Flask-Routen für den News-Feed
 @server.route('/')
 def index():
-    # Umleitung zur Dash-App
-    return redirect('/dash/')
+    # Umleitung zur News Feed-Seite als Hauptseite
+    return redirect('/news')
 
+@server.route('/news')
+def news_feed():
+    # Parameter aus der Anfrage holen
+    page = int(request.args.get('page', 1))
+    search_term = request.args.get('search', '')
+    category = request.args.get('category', '')
+    author = request.args.get('author', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    sort = request.args.get('sort', 'date_desc')
+    
+    # Artikel suchen (feste Anzahl von 20 Artikeln pro Seite)
+    per_page = 20
+    articles, total_count = search_articles(
+        search_term=search_term,
+        category=category,
+        author=author,
+        date_from=date_from,
+        date_to=date_to,
+        sort=sort,
+        page=page,
+        per_page=per_page
+    )
+    
+    # Alle verfügbaren Kategorien für das Dropdown-Menü holen
+    categories = get_all_categories()
+    
+    # Paginierungs-Informationen
+    total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 1
+    # Berechne den Paginierungsbereich hier anstatt im Template
+    pagination_range = get_pagination_range(page, total_pages)
+    
+    return render_template(
+        'news_feed.html',
+        articles=articles,
+        page=page,
+        total_pages=total_pages,
+        total_articles=total_count,
+        search_term=search_term,
+        category=category,
+        author=author,
+        date_from=date_from,
+        date_to=date_to,
+        sort=sort,
+        categories=categories,
+        pagination_range=pagination_range
+    )
+
+# Bestehende Flask-Routen für query.html
 @server.route('/query', methods=['GET', 'POST'])
 def query():
     query_result = None
@@ -244,6 +414,74 @@ def export_db():
         )
     except Exception as e:
         return str(e)
+
+# Neue Route für die Artikel-Vorschau
+@server.route('/article_preview')
+def article_preview():
+    url = request.args.get('url', '')
+    if not url:
+        return jsonify({'success': False, 'error': 'Keine URL angegeben'})
+    
+    try:
+        # Artikel-Seite abrufen
+        response = requests.get(url, timeout=10)
+        if response.status_code != 200:
+            return jsonify({'success': False, 'error': f'HTTP Fehler: {response.status_code}'})
+        
+        # HTML parsen
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Den Hauptinhalt des Artikels extrahieren
+        article_content = soup.find('div', class_='article-content')
+        
+        if not article_content:
+            return jsonify({'success': False, 'error': 'Artikel-Inhalt konnte nicht gefunden werden'})
+        
+        # Unerwünschte Elemente entfernen (Werbung, etc.)
+        for ad in article_content.find_all(['div'], class_=['ad', 'ad-label', 'ad--sticky', 'ad--inread', 'inread-cls-reduc']):
+            ad.decompose()
+        
+        for paternoster in article_content.find_all('a-paternoster'):
+            paternoster.decompose()
+        
+        # Nur den eigentlichen Text des Artikels behalten
+        content_html = ""
+        for element in article_content.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li']):
+            content_html += str(element)
+        
+        # Falls der Inhalt leer ist, versuchen wir es mit einer anderen Methode
+        if not content_html.strip():
+            # Alternative: Den Text zwischen RSPEAK_START und RSPEAK_STOP finden
+            html_str = str(soup)
+            content_parts = []
+            
+            start_markers = [m.start() for m in re.finditer('<!-- RSPEAK_START -->', html_str)]
+            end_markers = [m.start() for m in re.finditer('<!-- RSPEAK_STOP -->', html_str)]
+            
+            if start_markers and end_markers and len(start_markers) == len(end_markers):
+                for i in range(len(start_markers)):
+                    if i < len(end_markers):
+                        start_pos = start_markers[i] + len('<!-- RSPEAK_START -->')
+                        end_pos = end_markers[i]
+                        if start_pos < end_pos:
+                            content_parts.append(html_str[start_pos:end_pos].strip())
+                
+                content_html = ''.join(content_parts)
+                # HTML-Parser nochmal anwenden, um nur die relevanten Elemente zu behalten
+                content_soup = BeautifulSoup(content_html, 'html.parser')
+                content_html = ''.join(str(el) for el in content_soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li']))
+        
+        if not content_html.strip():
+            return jsonify({'success': False, 'error': 'Artikel-Inhalt konnte nicht extrahiert werden'})
+        
+        return jsonify({
+            'success': True,
+            'content': content_html,
+            'url': url
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == "__main__":
     app.run_server(debug=True, host="0.0.0.0", port=6800)
