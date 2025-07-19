@@ -223,7 +223,7 @@ def insert_article(conn, title, url, date, author, category, keywords, word_coun
 # ----------------------------------------------------------------
 # MAIN CRAWLING FUNCTION
 # ----------------------------------------------------------------
-def crawl_heise(initial_year=2025, initial_month=3):
+def crawl_heise(initial_year=2025, initial_month=6):
     """
     Starts the crawl process for Heise News.
     Loads the stored progress (year, month, article index) and resumes from there.
@@ -337,13 +337,27 @@ def crawl_heise(initial_year=2025, initial_month=3):
             print_status(f"Error displaying text: {e}", "ERROR")
 
 if __name__ == '__main__':
+    import sys
     import threading
-    # Start the API in a separate daemon thread
-    threading.Thread(
-        target=lambda: __import__('api').app.run(debug=True, port=6600, use_reloader=False),
-        daemon=True
-    ).start()
-    try:
-        crawl_heise()
-    except KeyboardInterrupt:
-        print_status("Crawling interrupted.", "WARNING")
+    import subprocess
+    
+    # Prüfe ob Streamlit-Modus gewünscht ist
+    if len(sys.argv) > 1 and sys.argv[1] == '--streamlit':
+        print("🚀 Starte Streamlit-Anwendung...")
+        try:
+            subprocess.run([sys.executable, "run_streamlit.py"])
+        except ImportError:
+            print("❌ Streamlit nicht installiert. Installiere mit: pip install -r requirements_streamlit.txt")
+        except Exception as e:
+            print(f"❌ Fehler beim Starten von Streamlit: {e}")
+    else:
+        # Ursprünglicher Flask/API-Modus
+        # Start the API in a separate daemon thread
+        threading.Thread(
+            target=lambda: __import__('api').app.run(debug=True, port=6600, use_reloader=False),
+            daemon=True
+        ).start()
+        try:
+            crawl_heise()
+        except KeyboardInterrupt:
+            print_status("Crawling interrupted.", "WARNING")

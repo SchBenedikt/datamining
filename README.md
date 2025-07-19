@@ -16,6 +16,7 @@ The **Heise News Crawler** is designed to automatically extract and store news a
 - 🎨 **Enhanced Terminal Output:** Uses PyFiglet for improved readability.
 - 📤 **Data export:** Export of articles as .csv, .json, .xlsx-file or display the data in a stats.html file
 - 🖥 **API**: Provision of statistics and complete data sets.
+- 🤖 **AI Analytics:** Advanced analysis with Google Generative AI for topic modeling, sentiment analysis, and trend detection.
   
 Also an API endpoint is provided that can display the crawled data and statistics.
 
@@ -41,7 +42,7 @@ pip3 install -r requirements.txt
 
 ### 3️⃣ Create `.env` File
 
-Set up your database and email credentials by creating a `.env` file:
+Set up your database, email credentials, and AI API keys by creating a `.env` file:
 
 ```env
 EMAIL_USER=...
@@ -56,6 +57,7 @@ DB_HOST=...
 DB_PORT=...
 DISCORD_TOKEN=...
 CHANNEL_ID=...
+GOOGLE_API_KEY=...  # Für KI-Analysen mit Google Generative AI
 ```
 
 
@@ -104,8 +106,25 @@ The API server starts automatically. You can call up the statistics here:
 http://127.0.0.1:6600/stats
 ```
 
+### 4️⃣ Start Streamlit Dashboard
 
-### 4️⃣ Export articles
+Start the interactive Streamlit dashboard with advanced analytics and AI features:
+
+```sh
+cd heise
+pip install -r requirements_streamlit.txt
+streamlit run streamlit_app.py
+```
+
+The dashboard includes:
+- 📊 Interactive visualizations
+- 📈 Time-based analysis
+- 🔍 Keyword and content exploration
+- 🤖 AI-powered analytics with Google Generative AI
+- 🔮 Trend detection and topic modeling
+
+
+### 5️⃣ Export articles
 
 You can export the data for each item to a CSV, JSON or XLSX file.
 ```sh
