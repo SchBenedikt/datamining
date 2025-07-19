@@ -55,6 +55,7 @@ def create_table():
                 CREATE TABLE IF NOT EXISTS articles (
                     id SERIAL PRIMARY KEY,
                     url TEXT UNIQUE,
+                    title TEXT,
                     author TEXT,
                     date TEXT,
                     keywords TEXT,
@@ -66,6 +67,16 @@ def create_table():
                     page_template TEXT
                 );
             """)
+            
+            # Check if title column exists, add it if not (for existing databases)
+            cur.execute("""
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name = 'articles' AND column_name = 'title';
+            """)
+            if not cur.fetchone():
+                cur.execute("ALTER TABLE articles ADD COLUMN title TEXT;")
+                print_status("Added 'title' column to existing articles table.", "INFO")
+            
             conn.commit()
         conn.close()
         print_status("Table 'articles' was created or already exists.", "INFO")
@@ -106,7 +117,7 @@ def update_crawl_state(conn, page, article_index):
 # -----------------------------------------------------------------------------
 # ARTICLE PROCESSING
 # -----------------------------------------------------------------------------
-def insert_chip_article(conn, url, author, date, keywords, description, type_, 
+def insert_chip_article(conn, url, title, author, date, keywords, description, type_, 
                         page_level1, page_level2, page_level3, page_template):
     """
     Inserts an article into the articles table or updates it
@@ -117,9 +128,9 @@ def insert_chip_article(conn, url, author, date, keywords, description, type_,
         cur.execute("SELECT id FROM articles WHERE url=%s", (url,))
         if cur.fetchone():
             replaced = True
-        base_columns = ["url", "author", "date", "keywords", "description", "type",
+        base_columns = ["url", "title", "author", "date", "keywords", "description", "type",
                         "page_level1", "page_level2", "page_level3", "page_template"]
-        base_values = [url, author, date, keywords, description, type_,
+        base_values = [url, title, author, date, keywords, description, type_,
                        page_level1, page_level2, page_level3, page_template]
         placeholders = ", ".join(["%s"] * len(base_values))
         columns_sql = ", ".join('"' + col + '"' for col in base_columns)
@@ -143,11 +154,13 @@ def scrape_article_details(conn, url):
             soup = BeautifulSoup(response.text, 'html.parser')
             
             # Extract standard metadata
+            title_meta = soup.find("meta", attrs={"property": "og:title"})
             author_meta = soup.find("meta", attrs={"name": "author"})
             date_elem = soup.find("time")
             description_meta = soup.find("meta", attrs={"name": "description"})
             type_meta = soup.find("meta", attrs={"property": "og:type"})
             
+            title = title_meta["content"].strip() if title_meta and title_meta.get("content") else "Unknown"
             author = author_meta["content"].strip() if author_meta and author_meta.get("content") else "Unknown"
             date = date_elem["content"].strip() if date_elem and date_elem.get("content") else "Unknown"
             description = description_meta["content"].strip() if description_meta and description_meta.get("content") else "Unknown"
@@ -170,7 +183,7 @@ def scrape_article_details(conn, url):
                     print_status(f"Error parsing utag_data in {url}: {e}", "ERROR")
                     send_notification("Chip Mining Error", f"Error parsing utag_data in {url}: {e}", os.getenv('ALERT_EMAIL'))
             
-            replaced = insert_chip_article(conn, url, author, date, keywords, description, 
+            replaced = insert_chip_article(conn, url, title, author, date, keywords, description, 
                                            type_, page_level1, page_level2, page_level3, page_template)
             if replaced:
                 print_status(f"{date} - {url} already exists.", "INFO")
