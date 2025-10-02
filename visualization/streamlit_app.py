@@ -230,7 +230,8 @@ def load_articles_data() -> pd.DataFrame:
     try:
         query = """
         SELECT id, title, url, date, author, category, keywords, 
-               word_count, editor_abbr, site_name
+               word_count, editor_abbr, site_name, 
+               COALESCE(source, 'heise') as source
         FROM articles 
         ORDER BY date DESC
         """
@@ -4816,7 +4817,7 @@ if __name__ == "__main__":
         """Hauptfunktion der Streamlit-App"""
         
         # Header
-        st.markdown('<h1 class="main-header">🗞️ Heise Mining Dashboard</h1>', unsafe_allow_html=True)
+        st.markdown('<h1 class="main-header">🗞️ News Mining Dashboard</h1>', unsafe_allow_html=True)
         
         # Sidebar für Navigation
         st.sidebar.title("Navigation")
@@ -4831,16 +4832,35 @@ if __name__ == "__main__":
         
         if df.empty:
             st.error("❌ Keine Daten verfügbar. Überprüfen Sie die Datenbankverbindung.")
-            st.info("💡 Stellen Sie sicher, dass:")
-            st.info("• Die .env-Datei korrekt konfiguriert ist")
-            st.info("• Die Datenbank erreichbar ist")
-            st.info("• Die Tabelle 'articles' existiert und Daten enthält")
+            return
+        
+        # Source filter in sidebar
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🔍 Filter")
+        
+        available_sources = df['source'].unique().tolist() if 'source' in df.columns else ['heise']
+        selected_sources = st.sidebar.multiselect(
+            "Quelle auswählen",
+            options=available_sources,
+            default=available_sources
+        )
+        
+        # Filter dataframe by selected sources
+        if selected_sources:
+            df = df[df['source'].isin(selected_sources)]
+        
+        if df.empty:
+            st.warning("⚠️ Keine Daten für die ausgewählten Filter verfügbar.")
             return
         
         # Informationen über die geladenen Daten
         st.sidebar.markdown("---")
         st.sidebar.subheader("📊 Daten-Info")
         st.sidebar.metric("Artikel gesamt", len(df))
+        if 'source' in df.columns:
+            for source in df['source'].unique():
+                source_count = len(df[df['source'] == source])
+                st.sidebar.metric(f"{source.capitalize()} Artikel", source_count)
         st.sidebar.metric("Anzahl Autoren", df['author'].nunique())
         st.sidebar.metric("Anzahl Kategorien", df['category'].nunique())
         
