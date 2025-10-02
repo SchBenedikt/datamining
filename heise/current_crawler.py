@@ -47,10 +47,20 @@ def create_table(conn):
                 keywords TEXT,
                 word_count INTEGER,
                 editor_abbr TEXT,
-                site_name TEXT
+                site_name TEXT,
+                source TEXT DEFAULT 'heise'
             )
         ''')
         conn.commit()
+    # Ensure source column exists in existing tables
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name = 'articles' AND column_name = 'source';
+        """)
+        if not cur.fetchone():
+            cur.execute("ALTER TABLE articles ADD COLUMN source TEXT DEFAULT 'heise';")
+            conn.commit()
 
 # Neue Funktion: Sicherstellen, dass Sprachspalten existieren
 def ensure_language_columns(conn, languages):
@@ -72,8 +82,8 @@ def insert_article(conn, title, url, date, author, category, keywords, word_coun
             replaced = True
         if alt_data:
             ensure_language_columns(conn, alt_data.keys())
-        base_columns = ["title", "url", "date", "author", "category", "keywords", "word_count", "editor_abbr", "site_name"]
-        base_values = [title, url, date, author, category, keywords, word_count, editor_abbr, site_name]
+        base_columns = ["title", "url", "date", "author", "category", "keywords", "word_count", "editor_abbr", "site_name", "source"]
+        base_values = [title, url, date, author, category, keywords, word_count, editor_abbr, site_name, "heise"]
         extra_columns = []
         extra_values = []
         if alt_data:
