@@ -169,13 +169,54 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Environment variables
 .env
-.env
+.env.local
+.env.production
 .cache_ggshield
-.env
 
 # Data exports (but keep the directory)
 data/*.csv
 data/*.xlsx
 data/*.json
+data/*.sql
 database_export.sql
+
+# Temporary and backup files
+*_OLD.md
+*_NEW.md
+*.bak
+*.tmp
+*.swp
+*~
+
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE-specific files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Docker volumes
+docker/volumes/
+portainer_data/
+dockge_data/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Streamlit
+.streamlit/secrets.toml
