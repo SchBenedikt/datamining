@@ -5,6 +5,31 @@
   <img src="https://img.shields.io/badge/Open%20in-Deepnote-blue?style=for-the-badge&logo=deepnote" width="250"/>
 </a>
 
+# 🗞️ Unified News Mining System
+
+A comprehensive, unified crawler system for collecting and analyzing news articles from **Heise.de** and **Chip.de**.
+
+## 🎯 Quick Links
+
+- 📖 **[Quick Start Guide](QUICKSTART.md)** - Get started in 5 minutes
+- 🏗️ **[Architecture](ARCHITECTURE.md)** - System design and data flow
+- 🐳 **[Docker Setup](DOCKER_SETUP.md)** - Deployment with Docker
+- 🔧 **[Integration Guide](INTEGRATION_GUIDE.md)** - Technical details
+- 📊 **[Implementation Summary](IMPLEMENTATION_SUMMARY.md)** - What was built
+
+## ✨ Key Features
+
+- ✅ **Unified Database** - Both sources in one PostgreSQL table
+- ✅ **Live Monitoring** - Automatic checks every 5-10 minutes
+- ✅ **Single Dashboard** - Streamlit app for both sources
+- ✅ **Source Filtering** - View Heise, Chip, or both
+- ✅ **Discord Bot** - Real-time statistics updates
+- ✅ **Export Data** - CSV, Excel, JSON with source info
+- ✅ **Docker Ready** - One-command deployment
+- ✅ **AI Analytics** - Powered by Google Generative AI
+
+---
+
 # 🌍 Purpose & Functionality
 The **News Mining System** is designed to automatically extract and store news articles from multiple sources. The primary goals are:
 
