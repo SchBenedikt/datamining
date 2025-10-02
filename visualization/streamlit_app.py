@@ -56,16 +56,16 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Umgebungsvariablen laden
-load_dotenv()
+# Load environment variables from root .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
-# Datenbank-Verbindungsparameter
+# Database connection parameters
 DB_PARAMS = {
-    'dbname': os.getenv('DB_NAME'),
-    'user': os.getenv('DB_USER'),
-    'password': os.getenv('DB_PASSWORD'),
-    'host': os.getenv('DB_HOST'),
-    'port': os.getenv('DB_PORT')
+    'dbname': os.getenv('DB_NAME', 'datamining'),
+    'user': os.getenv('DB_USER', 'postgres'),
+    'password': os.getenv('DB_PASSWORD', 'postgres'),
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'port': os.getenv('DB_PORT', '5432')
 }
 
 # Google API-Konfiguration
@@ -198,14 +198,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Cache für bessere Performance
+# Cache for better performance
 def get_db_connection():
-    """Erstellt eine Datenbankverbindung"""
+    """Creates a database connection"""
     try:
-        # Überprüfe, ob alle erforderlichen Parameter vorhanden sind
+        # Check if all required parameters are present
         if not all([DB_PARAMS.get('dbname'), DB_PARAMS.get('user'), 
                    DB_PARAMS.get('password'), DB_PARAMS.get('host')]):
-            st.error("Nicht alle Datenbankparameter sind konfiguriert. Prüfen Sie die .env-Datei.")
+            st.error("Not all database parameters are configured. Check the .env file.")
             return None
             
         conn = psycopg2.connect(
@@ -217,12 +217,12 @@ def get_db_connection():
         )
         return conn
     except Exception as e:
-        st.error(f"Datenbankverbindung fehlgeschlagen: {e}")
+        st.error(f"Database connection failed: {e}")
         return None
 
-@st.cache_data(ttl=600)  # 10 Minuten Cache
+@st.cache_data(ttl=60)  # 1 minute cache for frequent updates
 def load_articles_data() -> pd.DataFrame:
-    """Lädt alle Artikel aus beiden Tabellen (heise und chip)"""
+    """Loads all articles from both tables (heise and chip)"""
     conn = get_db_connection()
     if conn is None:
         return pd.DataFrame()
@@ -300,7 +300,7 @@ def load_articles_data() -> pd.DataFrame:
         st.error(f"Fehler beim Laden der Artikel: {e}")
         return pd.DataFrame()
 
-@st.cache_data(ttl=300)  # 5 Minuten Cache
+@st.cache_data(ttl=60)  # 1 minute cache for frequent updates
 def get_categories() -> List[str]:
     """Holt alle verfügbaren Kategorien"""
     df = load_articles_data()

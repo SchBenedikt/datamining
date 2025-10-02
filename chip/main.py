@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import requests
 import psycopg2
@@ -9,15 +10,20 @@ from pyfiglet import figlet_format
 from notification import send_notification
 from datetime import datetime
 
-load_dotenv()
+# Add parent directory to path to import init_database
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from init_database import initialize_database
+
+# Load environment variables from root .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 # PostgreSQL connection parameters
 db_params = {
-    'dbname': os.getenv('DB_NAME'),
-    'user': os.getenv('DB_USER'),
-    'password': os.getenv('DB_PASSWORD'),
-    'host': os.getenv('DB_HOST'),
-    'port': os.getenv('DB_PORT')
+    'dbname': os.getenv('DB_NAME', 'datamining'),
+    'user': os.getenv('DB_USER', 'postgres'),
+    'password': os.getenv('DB_PASSWORD', 'postgres'),
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'port': os.getenv('DB_PORT', '5432')
 }
 
 # -----------------------------------------------------------------------------
@@ -258,6 +264,10 @@ def scrape_chip_news():
 # MAIN
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
+    # Initialize database on startup
+    print_status("Initializing database...", "INFO")
+    initialize_database()
+    
     try:
         scrape_chip_news()
     except KeyboardInterrupt:

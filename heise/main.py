@@ -10,6 +10,7 @@ Crawling script for Heise News.
 """
 
 import os
+import sys
 import json
 import requests
 from bs4 import BeautifulSoup
@@ -21,15 +22,20 @@ from datetime import datetime
 from dotenv import load_dotenv 
 import pandas as pd
 
-load_dotenv()  # added
+# Add parent directory to path to import init_database
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from init_database import initialize_database
+
+# Load environment variables from root .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 # PostgreSQL connection details
 db_params = {
-    'dbname': os.getenv('DB_NAME'),
-    'user': os.getenv('DB_USER'),
-    'password': os.getenv('DB_PASSWORD'),
-    'host': os.getenv('DB_HOST'),
-    'port': os.getenv('DB_PORT')
+    'dbname': os.getenv('DB_NAME', 'datamining'),
+    'user': os.getenv('DB_USER', 'postgres'),
+    'password': os.getenv('DB_PASSWORD', 'postgres'),
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'port': os.getenv('DB_PORT', '5432')
 }
 
 def connect_db():
@@ -341,17 +347,21 @@ if __name__ == '__main__':
     import threading
     import subprocess
     
-    # Prüfe ob Streamlit-Modus gewünscht ist
+    # Initialize database on startup
+    print_status("Initializing database...", "INFO")
+    initialize_database()
+    
+    # Check if Streamlit mode is requested
     if len(sys.argv) > 1 and sys.argv[1] == '--streamlit':
-        print("🚀 Starte Streamlit-Anwendung...")
+        print("🚀 Starting Streamlit application...")
         try:
             subprocess.run([sys.executable, "run_streamlit.py"])
         except ImportError:
-            print("❌ Streamlit nicht installiert. Installiere mit: pip install -r requirements_streamlit.txt")
+            print("❌ Streamlit not installed. Install with: pip install -r requirements_streamlit.txt")
         except Exception as e:
-            print(f"❌ Fehler beim Starten von Streamlit: {e}")
+            print(f"❌ Error starting Streamlit: {e}")
     else:
-        # Ursprünglicher Flask/API-Modus
+        # Original Flask/API mode
         # Start the API in a separate daemon thread
         threading.Thread(
             target=lambda: __import__('api').app.run(debug=True, port=6600, use_reloader=False),
