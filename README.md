@@ -6,17 +6,19 @@
 </a>
 
 # 🌍 Purpose & Functionality
-The **Heise News Crawler** is designed to automatically extract and store news articles from Heise's archive. The primary goals are:
+The **News Mining System** is designed to automatically extract and store news articles from multiple sources. The primary goals are:
 
-- 📡 **Data Collection:** Gather historical news articles from Heise.de.
-- 🏛 **Structured Storage:** Store articles in a PostgreSQL database for easy querying and analysis.
+- 📡 **Data Collection:** Gather historical news articles from Heise.de and Chip.de.
+- 🏛 **Structured Storage:** Store articles from both sources in a unified PostgreSQL database.
 - 🔍 **Metadata Extraction:** Retrieve key information such as title, author, category, keywords, and word count.
-- 🔄 **Incremental crawling:** Detect duplicate articles and save only new articles of the current day.
+- 🔄 **Incremental crawling:** Detect duplicate articles and save only new articles.
 - 🔔 **Notifications:** Send an email if an error occurs during the crawling process.
 - 🎨 **Enhanced Terminal Output:** Uses PyFiglet for improved readability.
-- 📤 **Data export:** Export of articles as .csv, .json, .xlsx-file or display the data in a stats.html file
+- 📤 **Data export:** Export articles as .csv, .json, .xlsx-file with source filtering.
 - 🖥 **API**: Provision of statistics and complete data sets.
 - 🤖 **AI Analytics:** Advanced analysis with Google Generative AI for topic modeling, sentiment analysis, and trend detection.
+- 🎯 **Unified Dashboard:** Single Streamlit application for both Heise and Chip data.
+- 🤖 **Discord Bot:** Real-time statistics for both sources in Discord.
   
 Also an API endpoint is provided that can display the crawled data and statistics.
 
@@ -65,9 +67,10 @@ GOOGLE_API_KEY=...  # Für KI-Analysen mit Google Generative AI
 
 ## 🛠 Usage
 
-### 1️⃣ Start the first Crawler (into the past)
+### 1️⃣ Start the Heise Archive Crawler (crawls backward from newest to oldest)
 
 ```sh
+cd heise
 python3 main.py
 ```
 
@@ -83,9 +86,10 @@ xxxx-xx-xx xx:xx:xx [INFO] 2025-03-01T20:00:00 - article-name
 If fewer than 10 items are found per day, an e-mail will be sent
 
 
-### 2️⃣ Start the second Crawler (for current articles in the present)
+### 2️⃣ Start the Heise Live Crawler (checks for new articles every 10 minutes)
 
 ```sh
+cd heise
 python3 current_crawler.py
 ```
 
@@ -99,19 +103,33 @@ xxxx-xx-xx xx:xx:xx [INFO] Warte 300 Sekunden bis zum nächsten Crawl.
 (⬆️ date)
 ```
 
-### 3️⃣ Use API
+### 3️⃣ Start the Chip Archive Crawler (crawls from page 1 onward)
 
-The API server starts automatically. You can call up the statistics here:
+```sh
+cd chip
+python3 main.py
+```
+
+### 4️⃣ Start the Chip Live Crawler (checks for new articles every 10 minutes)
+
+```sh
+cd chip
+python3 current_crawler.py
+```
+
+### 5️⃣ Use API
+
+The API server starts automatically when running heise/main.py. You can call up the statistics here:
 ```
 http://127.0.0.1:6600/stats
 ```
 
-### 4️⃣ Start Streamlit Dashboard
+### 6️⃣ Start Unified Streamlit Dashboard
 
-Start the interactive Streamlit dashboard with advanced analytics and AI features:
+Start the interactive Streamlit dashboard with support for both Heise and Chip:
 
 ```sh
-cd heise
+cd visualization
 pip install -r requirements_streamlit.txt
 streamlit run streamlit_app.py
 ```
@@ -122,12 +140,31 @@ The dashboard includes:
 - 🔍 Keyword and content exploration
 - 🤖 AI-powered analytics with Google Generative AI
 - 🔮 Trend detection and topic modeling
+- 🔀 Source filtering (Heise, Chip, or both)
+- 📥 Export functionality (CSV, Excel, JSON)
 
 
-### 5️⃣ Export articles
+### 7️⃣ Start Discord Bot
+
+Start the Discord bot for real-time statistics updates:
+
+```sh
+cd heise
+python3 bot.py
+```
+
+The bot provides:
+- Total article counts for both sources
+- Today's article counts for both sources
+- Author statistics
+- Updates every 10 minutes
+
+
+### 8️⃣ Export articles
 
 You can export the data for each item to a CSV, JSON or XLSX file.
 ```sh
+cd heise
 python3 export_articles.py
 ```
 Exported articles are saved in the current directory.
@@ -153,6 +190,15 @@ Exported articles are saved in the current directory.
 | word\_count  | INT    | Word count           |
 | editor\_abbr | TEXT   | Editor abbreviation  |
 | site\_name   | TEXT   | Website name         |
+| source       | TEXT   | Source (heise/chip)  |
+| description  | TEXT   | Article description (Chip only) |
+| type         | TEXT   | Article type (Chip only) |
+| page\_level1 | TEXT   | Page level 1 (Chip only) |
+| page\_level2 | TEXT   | Page level 2 (Chip only) |
+| page\_level3 | TEXT   | Page level 3 (Chip only) |
+| page\_template | TEXT | Page template (Chip only) |
+
+Note: The `source` column distinguishes between articles from Heise and Chip.
 
 ---
 
@@ -166,29 +212,26 @@ If any errors occur, an email notification will be sent.
 
 ## 📂 Project Structure
 
-(old)
 ```
-📂 Heise-News-Crawler
-├── 📄 .gitignore                 # Git ignore file
-├── 📄 .env                       # Environment variables (email & database config, you have to create this file manually)
-├── 📄 main.py                    # Main crawler script
-├── 📄 api.py                     # API functionalities
-├── 📄 notification.py            # Email notification handler
-├── 📄 test_notifications.py      # Testing email notifications
-├── 📄 README.md                  
-├── 📄 current_crawler.py         # Crawler for newer articles
-├── 📄 export_articles.py         # Function to export the data
-├── 📄 requirements.txt           
-└── 📂 templates/                 # HTML email templates
-    ├── 📄 stats.html             # API functionalities
-└── 📂 data/                      # Export data (as of 03/03/2025)
-    ├── 📄 .gitattributes         
-    ├── 📄 README.md
-    ├── 📄 api.py             
-    ├── 📄 articles_export.csv
-    ├── 📄 articles_export.json
-    ├── 📄 articles_export.xlsx
-└── 📄 LICENCE  
+📂 datamining
+├── 📂 heise/                      # Heise crawler and related scripts
+│   ├── 📄 main.py                 # Archive crawler (backward crawling)
+│   ├── 📄 current_crawler.py      # Live crawler (every 10 minutes)
+│   ├── 📄 bot.py                  # Discord bot
+│   ├── 📄 api.py                  # API functionalities
+│   ├── 📄 notification.py         # Email notification handler
+│   ├── 📄 export_articles.py      # Export functionality
+│   └── 📂 templates/              # HTML templates
+├── 📂 chip/                       # Chip crawler and related scripts
+│   ├── 📄 main.py                 # Archive crawler (forward crawling)
+│   ├── 📄 current_crawler.py      # Live crawler (every 10 minutes)
+│   └── 📄 notification.py         # Email notification handler
+├── 📂 visualization/              # Unified Streamlit dashboard
+│   ├── 📄 streamlit_app.py        # Main Streamlit application
+│   └── 📄 requirements_streamlit.txt
+├── 📄 requirements.txt            # Python dependencies
+├── 📄 .env                        # Environment variables (create manually)
+└── 📄 README.md
 ```
 
 ## ❗Troubleshooting
