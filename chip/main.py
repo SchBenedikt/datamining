@@ -64,7 +64,8 @@ def create_table():
                     page_level1 TEXT,
                     page_level2 TEXT,
                     page_level3 TEXT,
-                    page_template TEXT
+                    page_template TEXT,
+                    source TEXT DEFAULT 'chip'
                 );
             """)
             
@@ -76,6 +77,15 @@ def create_table():
             if not cur.fetchone():
                 cur.execute("ALTER TABLE articles ADD COLUMN title TEXT;")
                 print_status("Added 'title' column to existing articles table.", "INFO")
+            
+            # Check if source column exists, add it if not (for existing databases)
+            cur.execute("""
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name = 'articles' AND column_name = 'source';
+            """)
+            if not cur.fetchone():
+                cur.execute("ALTER TABLE articles ADD COLUMN source TEXT DEFAULT 'chip';")
+                print_status("Added 'source' column to existing articles table.", "INFO")
             
             conn.commit()
         conn.close()
@@ -129,9 +139,9 @@ def insert_chip_article(conn, url, title, author, date, keywords, description, t
         if cur.fetchone():
             replaced = True
         base_columns = ["url", "title", "author", "date", "keywords", "description", "type",
-                        "page_level1", "page_level2", "page_level3", "page_template"]
+                        "page_level1", "page_level2", "page_level3", "page_template", "source"]
         base_values = [url, title, author, date, keywords, description, type_,
-                       page_level1, page_level2, page_level3, page_template]
+                       page_level1, page_level2, page_level3, page_template, "chip"]
         placeholders = ", ".join(["%s"] * len(base_values))
         columns_sql = ", ".join('"' + col + '"' for col in base_columns)
         update_set = ", ".join(f'"{col}" = EXCLUDED."{col}"' for col in base_columns if col != "url")
