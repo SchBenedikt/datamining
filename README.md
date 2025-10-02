@@ -19,12 +19,12 @@ A comprehensive, unified crawler system for collecting and analyzing news articl
 
 ## ✨ Key Features
 
-- ✅ **Unified Database** - Both sources in one PostgreSQL table
+- ✅ **Separate Tables** - Two dedicated PostgreSQL tables (heise & chip)
 - ✅ **Live Monitoring** - Automatic checks every 5-10 minutes
 - ✅ **Single Dashboard** - Streamlit app for both sources
 - ✅ **Source Filtering** - View Heise, Chip, or both
 - ✅ **Discord Bot** - Real-time statistics updates
-- ✅ **Export Data** - CSV, Excel, JSON with source info
+- ✅ **Export Data** - CSV, Excel, JSON for both sources
 - ✅ **Docker Ready** - One-command deployment
 - ✅ **AI Analytics** - Powered by Google Generative AI
 
@@ -187,12 +187,21 @@ The bot provides:
 
 ### 8️⃣ Export articles
 
-You can export the data for each item to a CSV, JSON or XLSX file.
+You can export the data for each source to a CSV, JSON or XLSX file.
+
+**Export Heise articles:**
 ```sh
 cd heise
 python3 export_articles.py
 ```
-Exported articles are saved in the current directory.
+
+**Export Chip articles:**
+```sh
+cd chip
+python3 export_articles.py
+```
+
+Exported articles are saved in the data/ directory.
 
 ---
 
@@ -202,6 +211,10 @@ Exported articles are saved in the current directory.
 ---
 
 ## 🏗 Database Schema
+
+The database now uses **two separate tables** for better organization:
+
+### Heise Table
 
 | Column       | Type   | Description          |
 | ------------ | ------ | -------------------- |
@@ -215,15 +228,25 @@ Exported articles are saved in the current directory.
 | word\_count  | INT    | Word count           |
 | editor\_abbr | TEXT   | Editor abbreviation  |
 | site\_name   | TEXT   | Website name         |
-| source       | TEXT   | Source (heise/chip)  |
-| description  | TEXT   | Article description (Chip only) |
-| type         | TEXT   | Article type (Chip only) |
-| page\_level1 | TEXT   | Page level 1 (Chip only) |
-| page\_level2 | TEXT   | Page level 2 (Chip only) |
-| page\_level3 | TEXT   | Page level 3 (Chip only) |
-| page\_template | TEXT | Page template (Chip only) |
 
-Note: The `source` column distinguishes between articles from Heise and Chip.
+### Chip Table
+
+| Column       | Type   | Description          |
+| ------------ | ------ | -------------------- |
+| id           | SERIAL | Unique ID            |
+| title        | TEXT   | Article title        |
+| url          | TEXT   | Article URL (unique) |
+| date         | TEXT   | Publication date     |
+| author       | TEXT   | Author(s)            |
+| keywords     | TEXT   | Keywords             |
+| description  | TEXT   | Article description  |
+| type         | TEXT   | Article type         |
+| page\_level1 | TEXT   | Page level 1         |
+| page\_level2 | TEXT   | Page level 2         |
+| page\_level3 | TEXT   | Page level 3         |
+| page\_template | TEXT | Page template        |
+
+Note: The Streamlit dashboard automatically merges data from both tables for unified viewing.
 
 ---
 
@@ -250,7 +273,8 @@ If any errors occur, an email notification will be sent.
 ├── 📂 chip/                       # Chip crawler and related scripts
 │   ├── 📄 main.py                 # Archive crawler (forward crawling)
 │   ├── 📄 current_crawler.py      # Live crawler (every 10 minutes)
-│   └── 📄 notification.py         # Email notification handler
+│   ├── 📄 notification.py         # Email notification handler
+│   └── 📄 export_articles.py      # Export functionality
 ├── 📂 visualization/              # Unified Streamlit dashboard
 │   ├── 📄 streamlit_app.py        # Main Streamlit application
 │   └── 📄 requirements_streamlit.txt

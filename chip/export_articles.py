@@ -8,23 +8,23 @@ load_dotenv()
 
 def export_articles(engine, export_format):
     if export_format == "excel":
-        query = "SELECT * FROM heise"
+        query = "SELECT * FROM chip"
         df = pd.read_sql_query(query, engine)
-        output_file = "data/heise_export.xlsx"
+        output_file = "data/chip_export.xlsx"
         df.to_excel(output_file, index=False)
-        print(f"📊 Exported heise table to {output_file}")
+        print(f"📊 Exported chip table to {output_file}")
     elif export_format == "csv":
-        query = "SELECT * FROM heise"
+        query = "SELECT * FROM chip"
         df = pd.read_sql_query(query, engine)
-        output_file = "data/heise_export.csv"
+        output_file = "data/chip_export.csv"
         df.to_csv(output_file, index=False)
-        print(f"📝 Exported heise table to {output_file}")
+        print(f"📝 Exported chip table to {output_file}")
     elif export_format == "json":
-        query = "SELECT * FROM heise"
+        query = "SELECT * FROM chip"
         df = pd.read_sql_query(query, engine)
-        output_file = "data/heise_export.json"
+        output_file = "data/chip_export.json"
         df.to_json(output_file, orient="records")
-        print(f"🔣 Exported heise table to {output_file}")
+        print(f"🔣 Exported chip table to {output_file}")
     elif export_format == "sql":
         output_file = "database_export.sql"
         inspector = inspect(engine)
@@ -61,7 +61,7 @@ if __name__ == '__main__':
     connection_string = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
     engine = create_engine(connection_string)
 
-    print("Exporting the heise table")
+    print("Exporting the chip table")
     print("Choose an export format:")
     print("1: Excel")
     print("2: CSV")

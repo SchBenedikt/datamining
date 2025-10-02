@@ -37,7 +37,7 @@ def connect_db():
 def create_table(conn):
     with conn.cursor() as cur:
         cur.execute('''
-            CREATE TABLE IF NOT EXISTS articles (
+            CREATE TABLE IF NOT EXISTS heise (
                 id SERIAL PRIMARY KEY,
                 title TEXT,
                 url TEXT UNIQUE,
@@ -47,43 +47,33 @@ def create_table(conn):
                 keywords TEXT,
                 word_count INTEGER,
                 editor_abbr TEXT,
-                site_name TEXT,
-                source TEXT DEFAULT 'heise'
+                site_name TEXT
             )
         ''')
         conn.commit()
-    # Ensure source column exists in existing tables
-    with conn.cursor() as cur:
-        cur.execute("""
-            SELECT column_name FROM information_schema.columns 
-            WHERE table_name = 'articles' AND column_name = 'source';
-        """)
-        if not cur.fetchone():
-            cur.execute("ALTER TABLE articles ADD COLUMN source TEXT DEFAULT 'heise';")
-            conn.commit()
 
 # Neue Funktion: Sicherstellen, dass Sprachspalten existieren
 def ensure_language_columns(conn, languages):
     with conn.cursor() as cur:
-        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'articles';")
+        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'heise';")
         existing = {row[0] for row in cur.fetchall()}
     for lang in languages:
         if lang not in existing:
             with conn.cursor() as cur:
-                cur.execute(f'ALTER TABLE articles ADD COLUMN "{lang}" TEXT;')
+                cur.execute(f'ALTER TABLE heise ADD COLUMN "{lang}" TEXT;')
             conn.commit()
 
 # Neue Funktion: Artikel einfügen/aktualisieren (wie in main.py)
 def insert_article(conn, title, url, date, author, category, keywords, word_count, editor_abbr, site_name, alt_data):
     replaced = False
     with conn.cursor() as cur:
-        cur.execute("SELECT id FROM articles WHERE url=%s", (url,))
+        cur.execute("SELECT id FROM heise WHERE url=%s", (url,))
         if cur.fetchone():
             replaced = True
         if alt_data:
             ensure_language_columns(conn, alt_data.keys())
-        base_columns = ["title", "url", "date", "author", "category", "keywords", "word_count", "editor_abbr", "site_name", "source"]
-        base_values = [title, url, date, author, category, keywords, word_count, editor_abbr, site_name, "heise"]
+        base_columns = ["title", "url", "date", "author", "category", "keywords", "word_count", "editor_abbr", "site_name"]
+        base_values = [title, url, date, author, category, keywords, word_count, editor_abbr, site_name]
         extra_columns = []
         extra_values = []
         if alt_data:
@@ -96,7 +86,7 @@ def insert_article(conn, title, url, date, author, category, keywords, word_coun
         columns_sql = ", ".join('"' + col + '"' for col in columns)
         update_set = ", ".join(f'"{col}" = EXCLUDED."{col}"' for col in columns if col != "url")
         query = f'''
-            INSERT INTO articles ({columns_sql})
+            INSERT INTO heise ({columns_sql})
             VALUES ({placeholders})
             ON CONFLICT (url) DO UPDATE SET {update_set}
         '''
@@ -153,7 +143,7 @@ def get_article_details(url):
 
 def article_exists(conn, url):
     with conn.cursor() as cur:
-        cur.execute("SELECT id FROM articles WHERE url=%s", (url,))
+        cur.execute("SELECT id FROM heise WHERE url=%s", (url,))
         return cur.fetchone() is not None
 
 # Angepasste Funktion: Crawl-Prozess nur für heutige Artikel, jedoch mit Integritätschecks und E-Mail-Benachrichtigung wie in main.py

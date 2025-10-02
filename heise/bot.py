@@ -25,9 +25,10 @@ last_message = None  # Speichert die letzte Nachricht
 async def get_entry_count():
     try:
         conn = await asyncpg.connect(**DB_CONFIG)
-        count = await conn.fetchval("SELECT COUNT(*) FROM articles;")
+        heise_count = await conn.fetchval("SELECT COUNT(*) FROM heise;")
+        chip_count = await conn.fetchval("SELECT COUNT(*) FROM chip;")
         await conn.close()
-        return count
+        return heise_count + chip_count
     except Exception as e:
         print(f"❌ Fehler bei der DB-Abfrage: {e}")
         return None
@@ -36,8 +37,8 @@ async def get_source_counts():
     """Get article counts per source"""
     try:
         conn = await asyncpg.connect(**DB_CONFIG)
-        heise_count = await conn.fetchval("SELECT COUNT(*) FROM articles WHERE COALESCE(source, 'heise') = 'heise';")
-        chip_count = await conn.fetchval("SELECT COUNT(*) FROM articles WHERE source = 'chip';")
+        heise_count = await conn.fetchval("SELECT COUNT(*) FROM heise;")
+        chip_count = await conn.fetchval("SELECT COUNT(*) FROM chip;")
         await conn.close()
         return heise_count, chip_count
     except Exception as e:
@@ -47,12 +48,17 @@ async def get_source_counts():
 async def get_author_count():
     try:
         conn = await asyncpg.connect(**DB_CONFIG)
-        authors = await conn.fetch("SELECT author FROM articles;")  
+        heise_authors = await conn.fetch("SELECT author FROM heise;")
+        chip_authors = await conn.fetch("SELECT author FROM chip;")
         await conn.close()
 
         author_list = []
-        for row in authors:
-            author_list.extend(row["author"].split(","))  # Autoren aufsplitten
+        for row in heise_authors:
+            if row["author"]:
+                author_list.extend(row["author"].split(","))  # Autoren aufsplitten
+        for row in chip_authors:
+            if row["author"]:
+                author_list.extend(row["author"].split(","))  # Autoren aufsplitten
 
         unique_authors = set(a.strip() for a in author_list)  # Doppelte entfernen, Leerzeichen trimmen
         return len(unique_authors)  # Anzahl der einzigartigen Autoren
@@ -65,8 +71,9 @@ async def get_today_counts():
         conn = await asyncpg.connect(**DB_CONFIG)
         today_date = datetime.now(timezone.utc).date()  # Heutiges Datum in UTC
 
-        # Alle Einträge von heute abrufen
-        rows = await conn.fetch("SELECT date, author, COALESCE(source, 'heise') as source FROM articles;")
+        # Alle Einträge von heute abrufen aus beiden Tabellen
+        heise_rows = await conn.fetch("SELECT date, author FROM heise;")
+        chip_rows = await conn.fetch("SELECT date, author FROM chip;")
         await conn.close()
 
         article_count = 0
@@ -74,16 +81,23 @@ async def get_today_counts():
         chip_today = 0
         author_list = []
 
-        for row in rows:
+        for row in heise_rows:
             # Datum aus der DB in UTC umwandeln
             article_date = datetime.fromisoformat(row["date"]).date()
             if article_date == today_date:
                 article_count += 1
-                author_list.extend(row["author"].split(","))  # Autoren splitten
-                if row["source"] == "heise":
-                    heise_today += 1
-                elif row["source"] == "chip":
-                    chip_today += 1
+                heise_today += 1
+                if row["author"]:
+                    author_list.extend(row["author"].split(","))  # Autoren splitten
+
+        for row in chip_rows:
+            # Datum aus der DB in UTC umwandeln
+            article_date = datetime.fromisoformat(row["date"]).date()
+            if article_date == today_date:
+                article_count += 1
+                chip_today += 1
+                if row["author"]:
+                    author_list.extend(row["author"].split(","))  # Autoren splitten
 
         unique_authors_today = set(a.strip() for a in author_list)  # Doppelte entfernen
         return article_count, len(unique_authors_today), heise_today, chip_today

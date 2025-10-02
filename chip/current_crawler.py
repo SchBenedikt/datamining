@@ -40,7 +40,7 @@ def connect_db():
 def create_table(conn):
     with conn.cursor() as cur:
         cur.execute('''
-            CREATE TABLE IF NOT EXISTS articles (
+            CREATE TABLE IF NOT EXISTS chip (
                 id SERIAL PRIMARY KEY,
                 url TEXT UNIQUE,
                 title TEXT,
@@ -52,25 +52,15 @@ def create_table(conn):
                 page_level1 TEXT,
                 page_level2 TEXT,
                 page_level3 TEXT,
-                page_template TEXT,
-                source TEXT DEFAULT 'chip'
+                page_template TEXT
             )
         ''')
         conn.commit()
-    # Ensure source column exists in existing tables
-    with conn.cursor() as cur:
-        cur.execute("""
-            SELECT column_name FROM information_schema.columns 
-            WHERE table_name = 'articles' AND column_name = 'source';
-        """)
-        if not cur.fetchone():
-            cur.execute("ALTER TABLE articles ADD COLUMN source TEXT DEFAULT 'chip';")
-            conn.commit()
 
 # Check if article exists
 def article_exists(conn, url):
     with conn.cursor() as cur:
-        cur.execute("SELECT id FROM articles WHERE url=%s", (url,))
+        cur.execute("SELECT id FROM chip WHERE url=%s", (url,))
         return cur.fetchone() is not None
 
 # Insert article function
@@ -78,18 +68,18 @@ def insert_chip_article(conn, url, title, author, date, keywords, description, t
                         page_level1, page_level2, page_level3, page_template):
     replaced = False
     with conn.cursor() as cur:
-        cur.execute("SELECT id FROM articles WHERE url=%s", (url,))
+        cur.execute("SELECT id FROM chip WHERE url=%s", (url,))
         if cur.fetchone():
             replaced = True
         base_columns = ["url", "title", "author", "date", "keywords", "description", "type",
-                        "page_level1", "page_level2", "page_level3", "page_template", "source"]
+                        "page_level1", "page_level2", "page_level3", "page_template"]
         base_values = [url, title, author, date, keywords, description, type_,
-                       page_level1, page_level2, page_level3, page_template, "chip"]
+                       page_level1, page_level2, page_level3, page_template]
         placeholders = ", ".join(["%s"] * len(base_values))
         columns_sql = ", ".join('"' + col + '"' for col in base_columns)
         update_set = ", ".join(f'"{col}" = EXCLUDED."{col}"' for col in base_columns if col != "url")
         query = f'''
-            INSERT INTO articles ({columns_sql})
+            INSERT INTO chip ({columns_sql})
             VALUES ({placeholders})
             ON CONFLICT (url) DO UPDATE SET {update_set}
         '''

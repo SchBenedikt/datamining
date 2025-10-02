@@ -50,7 +50,7 @@ except ImportError:
 
 # Streamlit-Konfiguration
 st.set_page_config(
-    page_title="Heise Mining Dashboard",
+    page_title="News Mining Dashboard",
     page_icon="📰",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -222,21 +222,65 @@ def get_db_connection():
 
 @st.cache_data(ttl=600)  # 10 Minuten Cache
 def load_articles_data() -> pd.DataFrame:
-    """Lädt alle Artikel aus der Datenbank"""
+    """Lädt alle Artikel aus beiden Tabellen (heise und chip)"""
     conn = get_db_connection()
     if conn is None:
         return pd.DataFrame()
     
     try:
-        query = """
+        # Lade Heise-Artikel
+        heise_query = """
         SELECT id, title, url, date, author, category, keywords, 
-               word_count, editor_abbr, site_name, 
-               COALESCE(source, 'heise') as source
-        FROM articles 
+               word_count, editor_abbr, site_name, 'heise' as source
+        FROM heise 
         ORDER BY date DESC
         """
-        df = pd.read_sql_query(query, conn)
+        df_heise = pd.read_sql_query(heise_query, conn)
+        
+        # Lade Chip-Artikel
+        chip_query = """
+        SELECT id, title, url, date, author, keywords, 
+               description, type, page_level1, page_level2, page_level3, 
+               page_template, 'chip' as source
+        FROM chip 
+        ORDER BY date DESC
+        """
+        df_chip = pd.read_sql_query(chip_query, conn)
         conn.close()
+        
+        # Normalisiere die Spalten für Chip (füge fehlende Spalten hinzu)
+        if not df_chip.empty:
+            df_chip['category'] = df_chip.get('page_level1', '')
+            df_chip['word_count'] = None
+            df_chip['editor_abbr'] = None
+            df_chip['site_name'] = 'chip.de'
+        
+        # Normalisiere die Spalten für Heise (füge fehlende Spalten hinzu)
+        if not df_heise.empty:
+            df_heise['description'] = None
+            df_heise['type'] = None
+            df_heise['page_level1'] = None
+            df_heise['page_level2'] = None
+            df_heise['page_level3'] = None
+            df_heise['page_template'] = None
+        
+        # Stelle sicher, dass beide DataFrames die gleichen Spalten haben
+        all_columns = ['id', 'title', 'url', 'date', 'author', 'category', 'keywords', 
+                      'word_count', 'editor_abbr', 'site_name', 'source',
+                      'description', 'type', 'page_level1', 'page_level2', 
+                      'page_level3', 'page_template']
+        
+        for col in all_columns:
+            if col not in df_heise.columns:
+                df_heise[col] = None
+            if col not in df_chip.columns:
+                df_chip[col] = None
+        
+        # Kombiniere beide DataFrames
+        df = pd.concat([df_heise, df_chip], ignore_index=True)
+        
+        # Sortiere nach Datum absteigend
+        df = df.sort_values('date', ascending=False)
         
         # Datentypen konvertieren
         df['date'] = pd.to_datetime(df['date'], errors='coerce', utc=True)
@@ -1234,7 +1278,7 @@ def main():
     """Hauptfunktion der Streamlit-App"""
     
     # Header
-    st.markdown('<h1 class="main-header">🗞️ Heise Mining Dashboard</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🗞️ News Mining Dashboard</h1>', unsafe_allow_html=True)
     
     # Sidebar für Navigation
     st.sidebar.title("Navigation")
@@ -3280,10 +3324,14 @@ def show_sql_queries():
     
     # Beispiel-Abfragen
     example_queries = {
-        "Alle Artikel": "SELECT * FROM articles LIMIT 10",
-        "Artikel nach Kategorie": "SELECT category, COUNT(*) FROM articles GROUP BY category ORDER BY COUNT(*) DESC",
-        "Top Autoren": "SELECT author, COUNT(*) FROM articles WHERE author != 'N/A' GROUP BY author ORDER BY COUNT(*) DESC LIMIT 10",
-        "Artikel pro Tag": "SELECT DATE(date) as tag, COUNT(*) FROM articles GROUP BY DATE(date) ORDER BY tag DESC LIMIT 10"
+        "Alle Heise-Artikel": "SELECT * FROM heise LIMIT 10",
+        "Alle Chip-Artikel": "SELECT * FROM chip LIMIT 10",
+        "Heise Artikel nach Kategorie": "SELECT category, COUNT(*) FROM heise GROUP BY category ORDER BY COUNT(*) DESC",
+        "Chip Artikel nach Typ": "SELECT type, COUNT(*) FROM chip GROUP BY type ORDER BY COUNT(*) DESC",
+        "Top Heise-Autoren": "SELECT author, COUNT(*) FROM heise WHERE author != 'N/A' GROUP BY author ORDER BY COUNT(*) DESC LIMIT 10",
+        "Top Chip-Autoren": "SELECT author, COUNT(*) FROM chip WHERE author != 'N/A' GROUP BY author ORDER BY COUNT(*) DESC LIMIT 10",
+        "Heise Artikel pro Tag": "SELECT DATE(date) as tag, COUNT(*) FROM heise GROUP BY DATE(date) ORDER BY tag DESC LIMIT 10",
+        "Chip Artikel pro Tag": "SELECT DATE(date) as tag, COUNT(*) FROM chip GROUP BY DATE(date) ORDER BY tag DESC LIMIT 10"
     }
     
     selected_example = st.selectbox("Beispiel-Abfrage auswählen", ["Eigene Abfrage"] + list(example_queries.keys()))

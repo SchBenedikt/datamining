@@ -47,12 +47,12 @@ def print_status(message, level="INFO"):
 # TABLE AND CRAWL STATE FUNCTIONS
 # -----------------------------------------------------------------------------
 def create_table():
-    """Creates the articles table if it doesn't exist yet."""
+    """Creates the chip table if it doesn't exist yet."""
     try:
         conn = connect_db()
         with conn.cursor() as cur:
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS articles (
+                CREATE TABLE IF NOT EXISTS chip (
                     id SERIAL PRIMARY KEY,
                     url TEXT UNIQUE,
                     title TEXT,
@@ -64,32 +64,13 @@ def create_table():
                     page_level1 TEXT,
                     page_level2 TEXT,
                     page_level3 TEXT,
-                    page_template TEXT,
-                    source TEXT DEFAULT 'chip'
+                    page_template TEXT
                 );
             """)
             
-            # Check if title column exists, add it if not (for existing databases)
-            cur.execute("""
-                SELECT column_name FROM information_schema.columns 
-                WHERE table_name = 'articles' AND column_name = 'title';
-            """)
-            if not cur.fetchone():
-                cur.execute("ALTER TABLE articles ADD COLUMN title TEXT;")
-                print_status("Added 'title' column to existing articles table.", "INFO")
-            
-            # Check if source column exists, add it if not (for existing databases)
-            cur.execute("""
-                SELECT column_name FROM information_schema.columns 
-                WHERE table_name = 'articles' AND column_name = 'source';
-            """)
-            if not cur.fetchone():
-                cur.execute("ALTER TABLE articles ADD COLUMN source TEXT DEFAULT 'chip';")
-                print_status("Added 'source' column to existing articles table.", "INFO")
-            
             conn.commit()
         conn.close()
-        print_status("Table 'articles' was created or already exists.", "INFO")
+        print_status("Table 'chip' was created or already exists.", "INFO")
     except Exception as e:
         print_status(f"Error creating table: {e}", "ERROR")
         send_notification("Chip Mining Error", f"Error creating table: {e}", os.getenv('ALERT_EMAIL'))
@@ -135,18 +116,18 @@ def insert_chip_article(conn, url, title, author, date, keywords, description, t
     """
     replaced = False
     with conn.cursor() as cur:
-        cur.execute("SELECT id FROM articles WHERE url=%s", (url,))
+        cur.execute("SELECT id FROM chip WHERE url=%s", (url,))
         if cur.fetchone():
             replaced = True
         base_columns = ["url", "title", "author", "date", "keywords", "description", "type",
-                        "page_level1", "page_level2", "page_level3", "page_template", "source"]
+                        "page_level1", "page_level2", "page_level3", "page_template"]
         base_values = [url, title, author, date, keywords, description, type_,
-                       page_level1, page_level2, page_level3, page_template, "chip"]
+                       page_level1, page_level2, page_level3, page_template]
         placeholders = ", ".join(["%s"] * len(base_values))
         columns_sql = ", ".join('"' + col + '"' for col in base_columns)
         update_set = ", ".join(f'"{col}" = EXCLUDED."{col}"' for col in base_columns if col != "url")
         query = f'''
-            INSERT INTO articles ({columns_sql})
+            INSERT INTO chip ({columns_sql})
             VALUES ({placeholders})
             ON CONFLICT (url) DO UPDATE SET {update_set}
         '''

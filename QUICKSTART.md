@@ -1,6 +1,8 @@
 # Quick Start Guide
 
-Welcome to the unified News Mining System! This guide will help you get started quickly.
+Welcome to the News Mining System! This guide will help you get started quickly.
+
+**🔄 New: Separate Tables Architecture** - The system now uses two dedicated database tables (`heise` and `chip`) instead of a single unified table. See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) if upgrading from an older version.
 
 ## Prerequisites
 
