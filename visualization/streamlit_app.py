@@ -1,6 +1,6 @@
 """
-Streamlit-basierte Webanwendung für Heise Mining
-Ersetzt die Flask/Dash-Anwendung mit einer modernen, interaktiven Benutzeroberfläche
+Streamlit-based web application for News Mining
+Replaces the Flask/Dash application with a modern, interactive user interface
 """
 
 import streamlit as st
@@ -68,19 +68,19 @@ DB_PARAMS = {
     'port': os.getenv('DB_PORT', '5432')
 }
 
-# Google API-Konfiguration
+# Google API Configuration
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 
-# Google Generative AI konfigurieren, wenn API-Schlüssel vorhanden
+# Configure Google Generative AI if API key is available
 if GOOGLE_API_KEY:
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
     except Exception as e:
-        st.error(f"Fehler beim Konfigurieren der Google AI API: {e}")
+        st.error(f"Error configuring Google AI API: {e}")
 else:
-    st.warning("Kein Google API-Schlüssel gefunden. KI-Funktionen sind deaktiviert.")
+    st.warning("No Google API key found. AI features are disabled.")
 
-# Entferne None-Werte aus den DB-Parametern
+# Remove None values from DB parameters
 DB_PARAMS = {k: v for k, v in DB_PARAMS.items() if v is not None}
 
 # CSS für ultra-minimalistisches Styling
@@ -4390,25 +4390,31 @@ def create_advanced_visualizations(df: pd.DataFrame):
         st.plotly_chart(fig_sunburst, use_container_width=True)
 
 def add_real_time_features():
-    """Fügt Echtzeit-Features hinzu"""
+    """Adds real-time features with auto-refresh"""
     st.sidebar.markdown("---")
-    st.sidebar.subheader("🔄 Echtzeit-Features")
+    st.sidebar.subheader("🔄 Auto-Refresh")
     
-    # Auto-Refresh
-    auto_refresh = st.sidebar.checkbox("Auto-Refresh (30s)")
+    # Auto-Refresh with configurable interval
+    auto_refresh = st.sidebar.checkbox("Enable Auto-Refresh")
     if auto_refresh:
-        st.sidebar.info("🔄 Auto-Refresh aktiviert")
-        time.sleep(30)
+        refresh_interval = st.sidebar.select_slider(
+            "Refresh Interval",
+            options=[30, 60, 120, 300],
+            value=60,
+            format_func=lambda x: f"{x}s" if x < 60 else f"{x//60}m"
+        )
+        st.sidebar.info(f"🔄 Auto-refresh every {refresh_interval}s")
+        time.sleep(refresh_interval)
         st.rerun()
     
-    # Manuelle Aktualisierung
-    if st.sidebar.button("🔄 Daten aktualisieren"):
+    # Manual refresh button
+    if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
         st.rerun()
     
-    # Letztes Update
+    # Last update time
     last_update = datetime.now().strftime("%H:%M:%S")
-    st.sidebar.info(f"🕐 Letztes Update: {last_update}")
+    st.sidebar.caption(f"Last update: {last_update}")
 
 def create_summary_report(df: pd.DataFrame):
     """Erstellt einen Zusammenfassungsbericht"""
@@ -4862,33 +4868,35 @@ def create_data_quality_report(df: pd.DataFrame) -> str:
 if __name__ == "__main__":
     # Verbesserte main-Funktion mit allen Features
     def main():
-        """Hauptfunktion der Streamlit-App"""
+        """Main function of the Streamlit app"""
         
         # Header
         st.markdown('<h1 class="main-header">🗞️ News Mining Dashboard</h1>', unsafe_allow_html=True)
         
-        # Sidebar für Navigation
+        # Sidebar navigation with simplified menu
         st.sidebar.title("Navigation")
         page = st.sidebar.selectbox(
-            "Seite auswählen",
-            ["📊 Dashboard", "📈 Zeitanalysen", "🔑 Keyword-Analysen", "⚡ Performance-Metriken", "🔍 Artikelsuche", "🕸️ Autoren-Netzwerk", "🤖 KI-Analysen", "📉 Analysen", "📋 Erweiterte Reports", "🔧 SQL-Abfragen"]
+            "Select Page",
+            ["📊 Dashboard", "📈 Time Analysis", "🔑 Keywords", "🔍 Search", "🕸️ Network", "🤖 AI Analysis"]
         )
         
-        # Daten laden mit Fortschrittsanzeige
-        with st.spinner("Lade Daten aus der Datenbank..."):
+        # Load data with progress indicator
+        with st.spinner("Loading data from database..."):
             df = load_articles_data()
         
         if df.empty:
-            st.error("❌ Keine Daten verfügbar. Überprüfen Sie die Datenbankverbindung.")
+            st.error("❌ No data available. Check database connection.")
+            st.info("💡 Make sure:")
+            st.info("• The .env file is correctly configured in the root directory")
+            st.info("• The database is reachable")
+            st.info("• The tables 'heise' and 'chip' exist and contain data")
             return
         
-        # Source filter in sidebar
+        # Simple source filter
         st.sidebar.markdown("---")
-        st.sidebar.subheader("🔍 Filter")
-        
         available_sources = df['source'].unique().tolist() if 'source' in df.columns else ['heise']
         selected_sources = st.sidebar.multiselect(
-            "Quelle auswählen",
+            "Data Source",
             options=available_sources,
             default=available_sources
         )
@@ -4898,56 +4906,44 @@ if __name__ == "__main__":
             df = df[df['source'].isin(selected_sources)]
         
         if df.empty:
-            st.warning("⚠️ Keine Daten für die ausgewählten Filter verfügbar.")
+            st.warning("⚠️ No data for selected filters.")
             return
         
-        # Informationen über die geladenen Daten
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("📊 Daten-Info")
-        st.sidebar.metric("Artikel gesamt", len(df))
-        if 'source' in df.columns:
-            for source in df['source'].unique():
-                source_count = len(df[df['source'] == source])
-                st.sidebar.metric(f"{source.capitalize()} Artikel", source_count)
-        st.sidebar.metric("Anzahl Autoren", df['author'].nunique())
-        st.sidebar.metric("Anzahl Kategorien", df['category'].nunique())
-        
-        # Erweiterte Features hinzufügen
-        add_performance_indicators()
+        # Real-time features in sidebar (compact)
         add_real_time_features()
         
-        # Datenfilter anwenden
-        df_filtered = add_data_filters(df)
+        # Main content area - show basic stats here instead of sidebar
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Articles", len(df))
+        with col2:
+            st.metric("Authors", df['author'].nunique())
+        with col3:
+            st.metric("Categories", df['category'].nunique())
+        with col4:
+            # Database connection status
+            try:
+                conn = get_db_connection()
+                if conn:
+                    st.metric("Database", "🟢 Connected")
+                    conn.close()
+                else:
+                    st.metric("Database", "🔴 Disconnected")
+            except:
+                st.metric("Database", "🔴 Error")
         
-        # Export-Funktionalität
-        add_export_functionality(df_filtered)
-        
-        # Cache-Status
-        if st.sidebar.button("🔄 Cache leeren"):
-            st.cache_data.clear()
-            st.sidebar.success("Cache geleert!")
-            st.rerun()
-        
-        # Seitenbasierte Navigation
+        # Page-based navigation
         if page == "📊 Dashboard":
-            show_dashboard(df_filtered)
-        elif page == "📈 Zeitanalysen":
-            show_time_analytics(df_filtered)
-        elif page == "🔑 Keyword-Analysen":
-            show_keyword_analytics(df_filtered)
-        elif page == "⚡ Performance-Metriken":
-            show_performance_metrics(df_filtered)
-        elif page == "🔍 Artikelsuche":
-            show_article_search(df_filtered)
-        elif page == "🕸️ Autoren-Netzwerk":
-            show_author_network(df_filtered)
-        elif page == "🤖 KI-Analysen":
-            show_ai_analytics(df_filtered)
-        elif page == "📉 Analysen":
-            show_analytics(df_filtered)
-        elif page == "📋 Erweiterte Reports":
-            show_advanced_reports(df_filtered)
-        elif page == "🔧 SQL-Abfragen":
-            show_sql_queries()
+            show_dashboard(df)
+        elif page == "📈 Time Analysis":
+            show_time_analytics(df)
+        elif page == "🔑 Keywords":
+            show_keyword_analytics(df)
+        elif page == "🔍 Search":
+            show_article_search(df)
+        elif page == "🕸️ Network":
+            show_author_network(df)
+        elif page == "🤖 AI Analysis":
+            show_ai_analytics(df)
     
     main()
