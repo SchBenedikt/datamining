@@ -173,3 +173,9 @@ cython_debug/
 .env
 .cache_ggshield
 .env
+
+# Data exports (but keep the directory)
+data/*.csv
+data/*.xlsx
+data/*.json
+database_export.sql
