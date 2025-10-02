@@ -43,6 +43,7 @@ Ein umfassendes, einheitliches Crawler-System zum Sammeln und Analysieren von Na
 ## 🎯 Quick Links
 
 - 📖 **[Quick Start Guide](QUICKSTART.md)** - In 5 Minuten starten
+- ⚙️ **[Setup Guide](SETUP_GUIDE.md)** - New centralized configuration and auto-refresh features
 - 🏗️ **[Architecture](ARCHITECTURE.md)** - Systemarchitektur und Datenfluss
 - 🐳 **[Docker Setup](DOCKER_SETUP.md)** - Deployment mit Docker
 
@@ -50,6 +51,10 @@ Ein umfassendes, einheitliches Crawler-System zum Sammeln und Analysieren von Na
 
 ## ✨ Key Features
 
+- ✅ **Centralized Configuration** - Single `.env` file for all modules
+- ✅ **Auto Database Init** - Automatic table creation and schema updates
+- ✅ **Auto-Refresh Dashboard** - Real-time data updates with configurable intervals
+- ✅ **Simplified UI** - Clean sidebar with 6 main pages
 - ✅ **Separate Tabellen** - Zwei dedizierte PostgreSQL-Tabellen (heise & chip)
 - ✅ **Live Monitoring** - Automatische Prüfung alle 5-10 Minuten
 - ✅ **Single Dashboard** - Eine Streamlit-App für beide Quellen
