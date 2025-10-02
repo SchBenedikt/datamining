@@ -1,4 +1,4 @@
-````markdown
+
 # 🏗️ System-Architektur
 
 ## Übersicht
