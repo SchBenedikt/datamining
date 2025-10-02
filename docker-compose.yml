@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # Heise Archive Crawler
+  heise-archive-crawler:
+    build: .
+    container_name: heise-archive-crawler
+    command: python3 heise/main.py
+    env_file:
+      - .env
+    volumes:
+      - ./heise:/app/heise
+    restart: unless-stopped
+    networks:
+      - crawler-network
+
+  # Heise Live Crawler
+  heise-live-crawler:
+    build: .
+    container_name: heise-live-crawler
+    command: python3 heise/current_crawler.py
+    env_file:
+      - .env
+    volumes:
+      - ./heise:/app/heise
+    restart: unless-stopped
+    networks:
+      - crawler-network
+
+  # Chip Archive Crawler
+  chip-archive-crawler:
+    build: .
+    container_name: chip-archive-crawler
+    command: python3 chip/main.py
+    env_file:
+      - .env
+    volumes:
+      - ./chip:/app/chip
+    restart: unless-stopped
+    networks:
+      - crawler-network
+
+  # Chip Live Crawler
+  chip-live-crawler:
+    build: .
+    container_name: chip-live-crawler
+    command: python3 chip/current_crawler.py
+    env_file:
+      - .env
+    volumes:
+      - ./chip:/app/chip
+    restart: unless-stopped
+    networks:
+      - crawler-network
+
+  # Streamlit Dashboard
+  streamlit-dashboard:
+    build: .
+    container_name: streamlit-dashboard
+    command: streamlit run visualization/streamlit_app.py --server.port=8501 --server.address=0.0.0.0
+    env_file:
+      - .env
+    volumes:
+      - ./visualization:/app/visualization
+    ports:
+      - "8501:8501"
+    restart: unless-stopped
+    networks:
+      - crawler-network
+
+  # Discord Bot
+  discord-bot:
+    build: .
+    container_name: discord-bot
+    command: python3 heise/bot.py
+    env_file:
+      - .env
+    volumes:
+      - ./heise:/app/heise
+    restart: unless-stopped
+    networks:
+      - crawler-network
+
+networks:
+  crawler-network:
+    driver: bridge
