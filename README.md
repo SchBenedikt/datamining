@@ -1,4 +1,3 @@
-````markdown
 <a href="https://discord.com/invite/Q6Nn2z3tUP">
   <img src="https://discord.com/api/guilds/1346160903304773703/widget.png?style=banner2" width="250"/>
 </a>
