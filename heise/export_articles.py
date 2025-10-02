@@ -4,7 +4,8 @@ import pandas as pd
 from sqlalchemy import create_engine, inspect
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load environment variables from root .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 def export_articles(engine, export_format):
     if export_format == "excel":
