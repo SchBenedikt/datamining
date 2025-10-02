@@ -56,10 +56,10 @@ def print_status(message, level="INFO"):
 # DATABASE SETUP FUNCTIONS
 # ----------------------------------------------------------------
 def create_table(conn):
-    """Creates the 'articles' table if it does not exist."""
+    """Creates the 'heise' table if it does not exist."""
     with conn.cursor() as cur:
         cur.execute('''
-            CREATE TABLE IF NOT EXISTS articles (
+            CREATE TABLE IF NOT EXISTS heise (
                 id SERIAL PRIMARY KEY,
                 title TEXT,
                 url TEXT UNIQUE,
@@ -69,33 +69,23 @@ def create_table(conn):
                 keywords TEXT,
                 word_count INTEGER,
                 editor_abbr TEXT,
-                site_name TEXT,
-                source TEXT DEFAULT 'heise'
+                site_name TEXT
             )
         ''')
         conn.commit()
-    # Ensure source column exists in existing tables
-    with conn.cursor() as cur:
-        cur.execute("""
-            SELECT column_name FROM information_schema.columns 
-            WHERE table_name = 'articles' AND column_name = 'source';
-        """)
-        if not cur.fetchone():
-            cur.execute("ALTER TABLE articles ADD COLUMN source TEXT DEFAULT 'heise';")
-            conn.commit()
 
 def ensure_language_columns(conn, languages):
     """
     Ensures that for each language in 'languages'
-    a corresponding column exists in the 'articles' table.
+    a corresponding column exists in the 'heise' table.
     """
     with conn.cursor() as cur:
-        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'articles';")
+        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'heise';")
         existing = {row[0] for row in cur.fetchall()}
     for lang in languages:
         if lang not in existing:
             with conn.cursor() as cur:
-                cur.execute(f'ALTER TABLE articles ADD COLUMN "{lang}" TEXT;')
+                cur.execute(f'ALTER TABLE heise ADD COLUMN "{lang}" TEXT;')
             conn.commit()
 
 def create_crawl_state_table(conn):
@@ -197,19 +187,19 @@ def get_article_details(url):
 
 def insert_article(conn, title, url, date, author, category, keywords, word_count, editor_abbr, site_name, alt_data):
     """
-    Inserts an article into the 'articles' table or updates it,
+    Inserts an article into the 'heise' table or updates it,
     if an entry with the same URL already exists.
     Dynamically adds columns for alternative URLs.
     """
     replaced = False
     with conn.cursor() as cur:
-        cur.execute("SELECT id FROM articles WHERE url=%s", (url,))
+        cur.execute("SELECT id FROM heise WHERE url=%s", (url,))
         if cur.fetchone():
             replaced = True
         if alt_data:
             ensure_language_columns(conn, alt_data.keys())
-        base_columns = ["title", "url", "date", "author", "category", "keywords", "word_count", "editor_abbr", "site_name", "source"]
-        base_values = [title, url, date, author, category, keywords, word_count, editor_abbr, site_name, "heise"]
+        base_columns = ["title", "url", "date", "author", "category", "keywords", "word_count", "editor_abbr", "site_name"]
+        base_values = [title, url, date, author, category, keywords, word_count, editor_abbr, site_name]
         extra_columns = []
         extra_values = []
         if alt_data:
@@ -222,7 +212,7 @@ def insert_article(conn, title, url, date, author, category, keywords, word_coun
         columns_sql = ", ".join('"' + col + '"' for col in columns)
         update_set = ", ".join(f'"{col}" = EXCLUDED."{col}"' for col in columns if col != "url")
         query = f'''
-            INSERT INTO articles ({columns_sql})
+            INSERT INTO heise ({columns_sql})
             VALUES ({placeholders})
             ON CONFLICT (url) DO UPDATE SET {update_set}
         '''
