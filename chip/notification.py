@@ -4,9 +4,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# Sicherstellen, dass der Pfad zur .env-Datei korrekt ist:
-dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
-load_dotenv(dotenv_path)
+# Load environment variables from root .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 def send_notification(subject, body, to_email, debug_info=""):
     from_email = os.getenv('EMAIL_USER')

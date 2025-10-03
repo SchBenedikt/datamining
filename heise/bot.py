@@ -5,17 +5,19 @@ from discord.ext import tasks
 from dotenv import load_dotenv
 import time
 from datetime import datetime, timezone
-load_dotenv()
+
+# Load environment variables from root .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 DB_CONFIG = {
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),
-    "database": os.getenv("DB_NAME"),
-    "host": os.getenv("DB_HOST"),
-    "port": os.getenv("DB_PORT")
+    "user": os.getenv("DB_USER", "postgres"),
+    "password": os.getenv("DB_PASSWORD", "postgres"),
+    "database": os.getenv("DB_NAME", "datamining"),
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": os.getenv("DB_PORT", "5432")
 }
-CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
+CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
 
 intents = discord.Intents.default()
 bot = discord.Client(intents=intents)

@@ -8,7 +8,8 @@ from bs4 import BeautifulSoup
 from notification import send_notification
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load environment variables from root .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 # Status message function
 def print_status(message, level="INFO"):
@@ -25,11 +26,11 @@ def print_status(message, level="INFO"):
 def connect_db():
     try:
         db_params = {
-            'dbname': os.getenv('DB_NAME'),
-            'user': os.getenv('DB_USER'),
-            'password': os.getenv('DB_PASSWORD'),
-            'host': os.getenv('DB_HOST'),
-            'port': os.getenv('DB_PORT')
+            'dbname': os.getenv('DB_NAME', 'datamining'),
+            'user': os.getenv('DB_USER', 'postgres'),
+            'password': os.getenv('DB_PASSWORD', 'postgres'),
+            'host': os.getenv('DB_HOST', 'localhost'),
+            'port': os.getenv('DB_PORT', '5432')
         }
         return psycopg2.connect(**db_params)
     except Exception as e:
