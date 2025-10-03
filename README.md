@@ -47,27 +47,6 @@ Ein umfassendes, einheitliches Crawler-System zum Sammeln und Analysieren von Na
 - 🏗️ **[Architecture](ARCHITECTURE.md)** - Systemarchitektur und Datenfluss
 - 🐳 **[Docker Setup](DOCKER_SETUP.md)** - Deployment mit Docker
 
----
-
-## ✨ Key Features
-
-- ✅ **Centralized Configuration** - Single `.env` file for all modules
-- ✅ **Auto Database Init** - Automatic table creation and schema updates
-- ✅ **Auto-Refresh Dashboard** - Real-time data updates with configurable intervals
-- ✅ **Simplified UI** - Clean sidebar with 6 main pages
-- ✅ **Separate Tabellen** - Zwei dedizierte PostgreSQL-Tabellen (heise & chip)
-- ✅ **Live Monitoring** - Automatische Prüfung alle 5-10 Minuten
-- ✅ **Single Dashboard** - Eine Streamlit-App für beide Quellen
-- ✅ **Source Filtering** - Anzeige von Heise, Chip oder beiden
-- ✅ **Discord Bot** - Echtzeit-Statistik-Updates
-- ✅ **Daten exportieren** - CSV, Excel, JSON für beide Quellen
-- ✅ **Docker Ready** - Deployment mit einem Befehl
-- ✅ **AI Analytics** - Powered by Google Generative AI
-- ✅ **Autoren-Netzwerke** - Visualisierung von Autoren-Verbindungen
-- ✅ **Keyword-Analysen** - Schlagwortverteilung und Trends
-- ✅ **Zeitanalysen** - Zeitbasierte Diagramme und Graphen
-- ✅ **Suchfunktion** - Volltext-Suche in allen Artikeln
-- ✅ **Filterfunktionen** - Nach Quelle, Datum, Autor, Kategorie
 
 ---
 
@@ -83,7 +62,8 @@ Das **News Mining System** ist darauf ausgelegt, automatisch Nachrichtenartikel 
 - 🎨 **Verbesserte Terminal-Ausgabe** - Nutzung von PyFiglet für bessere Lesbarkeit
 - 📤 **Datenexport** - Export als CSV, JSON, XLSX mit Quellenfilterung
 - 🖥 **API** - Bereitstellung von Statistiken und kompletten Datensätzen
-- 🤖 **AI Analytics** - Erweiterte Analysen mit Google Generative AI für Topic Modeling, Sentiment Analysis und Trend Detection
+- 📈 **Analytics** - Detaillierte Auswertungen über Autoren, Kategorien und Zeitverläufe
+- 🔍 **Article Search** - Durchsuchen Sie alle Artikel mit erweiterten Filteroptionen
 - 🎯 **Einheitliches Dashboard** - Eine Streamlit-Anwendung für beide Quellen
 - 🤖 **Discord Bot** - Echtzeit-Statistiken für beide Quellen in Discord
 - 📊 **Umfangreiche Visualisierungen** - Über 20 verschiedene Diagramme, Graphen und Darstellungen

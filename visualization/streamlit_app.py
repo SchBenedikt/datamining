@@ -26,27 +26,9 @@ import base64
 import hashlib
 import random
 import time
-import google.generativeai as genai
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.decomposition import LatentDirichletAllocation, NMF
-from sklearn.cluster import KMeans
-from sklearn.metrics.pairwise import cosine_similarity
 import warnings
 warnings.filterwarnings("ignore")
 from tqdm import tqdm
-
-# TextBlob oder TextBlob-DE für Sentiment-Analyse importieren
-# Wir versuchen zuerst TextBlob-DE für deutsche Texte zu laden, 
-# und fallen auf Standard-TextBlob zurück, wenn TextBlob-DE nicht verfügbar ist
-try:
-    from textblob_de import TextBlobDE
-    TEXTBLOB_DE_AVAILABLE = True
-except ImportError:
-    try:
-        from textblob import TextBlob
-        TEXTBLOB_DE_AVAILABLE = False
-    except ImportError:
-        TEXTBLOB_DE_AVAILABLE = False
 
 # Streamlit-Konfiguration
 st.set_page_config(
@@ -68,22 +50,10 @@ DB_PARAMS = {
     'port': os.getenv('DB_PORT', '5432')
 }
 
-# Google API Configuration
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-
-# Configure Google Generative AI if API key is available
-if GOOGLE_API_KEY:
-    try:
-        genai.configure(api_key=GOOGLE_API_KEY)
-    except Exception as e:
-        st.error(f"Error configuring Google AI API: {e}")
-else:
-    st.warning("No Google API key found. AI features are disabled.")
-
 # Remove None values from DB parameters
 DB_PARAMS = {k: v for k, v in DB_PARAMS.items() if v is not None}
 
-# CSS für ultra-minimalistisches Styling
+# CSS für ultra-minimalistisches Styling mit Modal-Support
 st.markdown("""
 <style>
     .main-header {
@@ -93,6 +63,28 @@ st.markdown("""
         margin-bottom: 1.2rem;
         font-weight: 300;
         letter-spacing: -0.5px;
+    }
+    
+    /* Article preview container */
+    .article-preview {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        max-height: 600px;
+        overflow-y: auto;
+        border: 1px solid #e0e0e0;
+    }
+    
+    .article-preview h1, .article-preview h2, .article-preview h3 {
+        margin-top: 1.5rem;
+        margin-bottom: 0.8rem;
+        font-weight: 500;
+        color: #333;
+    }
+    
+    .article-preview p {
+        margin-bottom: 1rem;
+        line-height: 1.7;
     }
     
     .metric-container {
@@ -237,20 +229,21 @@ def load_articles_data() -> pd.DataFrame:
         """
         df_heise = pd.read_sql_query(heise_query, conn)
         
-        # Lade Chip-Artikel
+        # Lade Chip-Artikel (mit neuer Struktur)
         chip_query = """
-        SELECT id, title, url, date, author, keywords, 
-               description, type, page_level1, page_level2, page_level3, 
-               page_template, 'chip' as source
+        SELECT id, headline as title, url, date_published as date, author, 
+               category, description, article_type, 
+               image_url, image_caption, video_url, video_duration,
+               page_level1, page_level2, page_level3, 'chip' as source
         FROM chip 
-        ORDER BY date DESC
+        ORDER BY date_published DESC
         """
         df_chip = pd.read_sql_query(chip_query, conn)
         conn.close()
         
         # Normalisiere die Spalten für Chip (füge fehlende Spalten hinzu)
         if not df_chip.empty:
-            df_chip['category'] = df_chip.get('page_level1', '')
+            df_chip['keywords'] = None  # Chip hat keine separate keywords Spalte mehr
             df_chip['word_count'] = None
             df_chip['editor_abbr'] = None
             df_chip['site_name'] = 'chip.de'
@@ -258,17 +251,20 @@ def load_articles_data() -> pd.DataFrame:
         # Normalisiere die Spalten für Heise (füge fehlende Spalten hinzu)
         if not df_heise.empty:
             df_heise['description'] = None
-            df_heise['type'] = None
+            df_heise['article_type'] = None
+            df_heise['image_url'] = None
+            df_heise['image_caption'] = None
+            df_heise['video_url'] = None
+            df_heise['video_duration'] = None
             df_heise['page_level1'] = None
             df_heise['page_level2'] = None
             df_heise['page_level3'] = None
-            df_heise['page_template'] = None
         
         # Stelle sicher, dass beide DataFrames die gleichen Spalten haben
         all_columns = ['id', 'title', 'url', 'date', 'author', 'category', 'keywords', 
                       'word_count', 'editor_abbr', 'site_name', 'source',
-                      'description', 'type', 'page_level1', 'page_level2', 
-                      'page_level3', 'page_template']
+                      'description', 'article_type', 'image_url', 'image_caption',
+                      'video_url', 'video_duration', 'page_level1', 'page_level2', 'page_level3']
         
         for col in all_columns:
             if col not in df_heise.columns:
@@ -279,21 +275,71 @@ def load_articles_data() -> pd.DataFrame:
         # Kombiniere beide DataFrames
         df = pd.concat([df_heise, df_chip], ignore_index=True)
         
-        # Sortiere nach Datum absteigend
-        df = df.sort_values('date', ascending=False)
+        # Bereinige ungültige Datumswerte vor der Konvertierung
+        # Ersetze bekannte ungültige Werte mit None
+        invalid_date_values = ['Unknown', 'N/A', '', 'None', 'null']
+        df['date'] = df['date'].replace(invalid_date_values, None)
         
-        # Datentypen konvertieren
-        df['date'] = pd.to_datetime(df['date'], errors='coerce', utc=True)
+        # Entferne Zeilen ohne gültiges Datum (optional: auskommentieren um alle zu behalten)
+        # df = df[df['date'].notna()]
+        
+        # Sortiere nach Datum absteigend (nur gültige Datumswerte)
+        df = df.sort_values('date', ascending=False, na_position='last')
+        
+        # Datentypen konvertieren mit verbessertem Parsing
+        # Versuche verschiedene Datumsformate
+        def parse_flexible_date(date_str):
+            if pd.isna(date_str) or date_str is None:
+                return pd.NaT
+            
+            date_str = str(date_str).strip()
+            if not date_str or date_str in invalid_date_values:
+                return pd.NaT
+            
+            # Versuche ISO 8601 Format (häufigster Fall)
+            try:
+                return pd.to_datetime(date_str, utc=True)
+            except:
+                pass
+            
+            # Versuche verschiedene Formate
+            formats = [
+                '%Y-%m-%d %H:%M:%S',
+                '%Y-%m-%d',
+                '%d.%m.%Y %H:%M:%S',
+                '%d.%m.%Y',
+                '%Y/%m/%d %H:%M:%S',
+                '%Y/%m/%d'
+            ]
+            
+            for fmt in formats:
+                try:
+                    return pd.to_datetime(date_str, format=fmt, utc=True)
+                except:
+                    continue
+            
+            return pd.NaT
+        
+        # Wende flexible Datumsparsing an
+        original_count = len(df)
+        df['date'] = df['date'].apply(parse_flexible_date)
+        
         # Konvertiere zu lokaler Zeit ohne Timezone-Info für Vergleiche
         df['date'] = df['date'].dt.tz_localize(None)
         df['word_count'] = pd.to_numeric(df['word_count'], errors='coerce')
         
         # Prüfen ob date-Konvertierung erfolgreich war
+        invalid_dates = df['date'].isna().sum()
+        valid_dates = original_count - invalid_dates
+        
         if df['date'].isna().all():
-            st.warning("Warnung: Alle Datumswerte konnten nicht konvertiert werden. Zeitbasierte Analysen sind möglicherweise nicht verfügbar.")
-        elif df['date'].isna().any():
-            invalid_dates = df['date'].isna().sum()
-            st.info(f"Info: {invalid_dates} ungültige Datumswerte wurden gefunden und ignoriert.")
+            st.warning("⚠️ Warnung: Alle Datumswerte konnten nicht konvertiert werden. Zeitbasierte Analysen sind nicht verfügbar.")
+        elif invalid_dates > 0:
+            percentage = (invalid_dates / original_count) * 100
+            if percentage > 10:
+                st.warning(f"⚠️ Warnung: {invalid_dates} von {original_count} Datumswerten ({percentage:.1f}%) konnten nicht konvertiert werden.")
+            else:
+                st.info(f"ℹ️ Info: {invalid_dates} von {original_count} Datumswerten ({percentage:.1f}%) wurden ignoriert. {valid_dates} gültige Einträge verfügbar.")
         
         return df
     except Exception as e:
@@ -420,228 +466,6 @@ def get_article_content(article_id: int) -> str:
         return ""
 
 @st.cache_resource
-def get_text_vectorizer():
-    """Erstellt einen TF-IDF Vektorizer für Textanalyse"""
-    return TfidfVectorizer(max_features=5000, 
-                          stop_words=['der', 'die', 'das', 'und', 'in', 'ist', 'zu', 'für', 'mit'],
-                          ngram_range=(1, 2))
-
-@st.cache_data(ttl=1800)  # 30 Minuten Cache für Themenmodellierung
-def extract_topics(df: pd.DataFrame, n_topics=5, method='lda') -> Dict:
-    """Extrahiert Themen aus den Artikelinhalten mit LDA oder NMF"""
-    # Artikel mit Inhalt laden
-    contents = []
-    ids = []
-    
-    progress_bar = st.progress(0.0)
-    total = min(len(df), 500)  # Begrenze auf 500 Artikel für Performance
-    
-    for i, row in df.head(total).iterrows():
-        try:
-            content = get_article_content(row['id'])
-            if content:
-                contents.append(content)
-                ids.append(row['id'])
-            progress_bar.progress((i+1)/total)
-        except Exception as e:
-            st.warning(f"Konnte Inhalt für Artikel {row['id']} nicht laden: {str(e)}")
-    
-    if not contents:
-        progress_bar.empty()
-        return {'topics': [], 'topic_distribution': []}
-    
-    # Vektorisierung
-    vectorizer = get_text_vectorizer()
-    try:
-        X = vectorizer.fit_transform(contents)
-    except Exception as e:
-        progress_bar.empty()
-        st.error(f"Fehler bei der Textvektorisierung: {str(e)}")
-        return {'topics': [], 'topic_distribution': []}
-    
-    # Topic-Modelling
-    if method == 'lda':
-        model = LatentDirichletAllocation(n_components=n_topics, random_state=42)
-    else:  # NMF
-        model = NMF(n_components=n_topics, random_state=42)
-    
-    try:
-        topic_distribution = model.fit_transform(X)
-    except Exception as e:
-        progress_bar.empty()
-        st.error(f"Fehler beim Topic-Modelling: {str(e)}")
-        return {'topics': [], 'topic_distribution': []}
-    
-    # Themen und deren Top-Wörter
-    feature_names = vectorizer.get_feature_names_out()
-    topics = []
-    for topic_idx, topic in enumerate(model.components_):
-        top_words_idx = topic.argsort()[:-11:-1]
-        top_words = [feature_names[i] for i in top_words_idx]
-        topics.append(top_words)
-    
-    progress_bar.empty()
-    
-    # Zuordnung von Artikeln zu Themen
-    article_topics = []
-    for i, article_id in enumerate(ids):
-        dominant_topic = topic_distribution[i].argmax()
-        confidence = topic_distribution[i].max()
-        article_topics.append({
-            'article_id': article_id,
-            'topic': dominant_topic,
-            'confidence': confidence
-        })
-    
-    return {
-        'topics': topics,
-        'article_topics': article_topics
-    }
-
-@st.cache_data(ttl=1800)  # 30 Minuten Cache für Sentiment-Analyse
-def analyze_sentiment(texts: List[str]) -> List[Dict]:
-    """Führt Sentiment-Analyse auf den Texten durch"""
-    results = []
-    
-    # Überprüfen, ob TextBlob oder TextBlob-DE verfügbar ist (global definiert)
-    if not TEXTBLOB_DE_AVAILABLE:
-        try:
-            from textblob import TextBlob
-        except ImportError:
-            st.error("Weder TextBlob noch TextBlob-DE gefunden. Sentiment-Analyse nicht verfügbar.")
-            return [{'polarity': 0, 'subjectivity': 0, 'error': 'TextBlob nicht installiert'} for _ in texts]
-        
-        st.warning("TextBlob-DE nicht gefunden, verwende Standard-TextBlob. Die Ergebnisse könnten für deutsche Texte weniger präzise sein.")
-    
-    for text in texts:
-        if not text:
-            results.append({'polarity': 0, 'subjectivity': 0})
-            continue
-            
-        try:
-            if TEXTBLOB_DE_AVAILABLE:
-                # TextBlob-DE für deutsche Texte
-                from textblob_de import TextBlobDE
-                blob = TextBlobDE(text[:5000])  # Begrenze auf 5000 Zeichen für Performance
-                # TextBlobDE gibt Tupel (polarity, subjectivity) zurück
-                polarity, subjectivity = blob.sentiment
-            else:
-                # Standard TextBlob als Fallback
-                from textblob import TextBlob
-                blob = TextBlob(text[:5000])
-                # Standard TextBlob hat separate sentiment.polarity und sentiment.subjectivity Attribute
-                polarity = blob.sentiment.polarity
-                subjectivity = blob.sentiment.subjectivity
-                
-            results.append({
-                'polarity': polarity,  # Zwischen -1 (negativ) und 1 (positiv)
-                'subjectivity': subjectivity  # Zwischen 0 (objektiv) und 1 (subjektiv)
-            })
-        except Exception as e:
-            results.append({'polarity': 0, 'subjectivity': 0, 'error': str(e)})
-    
-    return results
-
-@st.cache_data(ttl=1800)  # 30 Minuten Cache für Cluster-Analyse
-def cluster_articles(df: pd.DataFrame, n_clusters=5) -> Dict:
-    """Clustert Artikel basierend auf TF-IDF-Vektorisierung"""
-    contents = []
-    ids = []
-    
-    progress_bar = st.progress(0.0)
-    total = min(len(df), 300)  # Begrenze auf 300 Artikel für Performance
-    
-    for i, row in df.head(total).iterrows():
-        try:
-            content = get_article_content(row['id'])
-            if content:
-                contents.append(content)
-                ids.append(row['id'])
-            progress_bar.progress((i+1)/total)
-        except Exception:
-            pass
-    
-    if not contents:
-        progress_bar.empty()
-        return {'clusters': []}
-    
-    # Vektorisierung
-    vectorizer = get_text_vectorizer()
-    try:
-        X = vectorizer.fit_transform(contents)
-    except Exception as e:
-        progress_bar.empty()
-        st.error(f"Fehler bei der Textvektorisierung: {str(e)}")
-        return {'clusters': []}
-    
-    # K-Means Clustering
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-    
-    try:
-        clusters = kmeans.fit_predict(X)
-    except Exception as e:
-        progress_bar.empty()
-        st.error(f"Fehler beim Clustering: {str(e)}")
-        return {'clusters': []}
-    
-    # Cluster-Zentren für Top-Wörter pro Cluster
-    feature_names = vectorizer.get_feature_names_out()
-    cluster_keywords = []
-    
-    for i in range(n_clusters):
-        indices = [j for j, x in enumerate(clusters) if x == i]
-        if not indices:
-            cluster_keywords.append([])
-            continue
-            
-        cluster_docs = [contents[j] for j in indices]
-        try:
-            cluster_vec = vectorizer.transform(cluster_docs)
-            importance = np.array(cluster_vec.sum(axis=0)).flatten()
-            indices = importance.argsort()[-10:][::-1]
-            keywords = [feature_names[j] for j in indices]
-            cluster_keywords.append(keywords)
-        except:
-            cluster_keywords.append([])
-    
-    # Ergebnisse strukturieren
-    cluster_results = []
-    for i, article_id in enumerate(ids):
-        cluster_results.append({
-            'article_id': article_id,
-            'cluster': int(clusters[i])
-        })
-    
-    progress_bar.empty()
-    return {
-        'clusters': cluster_results,
-        'cluster_keywords': cluster_keywords
-    }
-
-def analyze_with_genai(article_content: str, task: str) -> str:
-    """Nutzt die Google Generative AI für verschiedene Analyseaufgaben"""
-    if not GOOGLE_API_KEY or not article_content:
-        return "API-Schlüssel fehlt oder kein Artikelinhalt verfügbar."
-    
-    try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
-        prompts = {
-            'summary': f"Fasse den folgenden Nachrichtenartikel auf Deutsch in 3-5 Sätzen zusammen:\n\n{article_content[:15000]}",
-            'keywords': f"Extrahiere 5-10 der wichtigsten Schlüsselwörter aus diesem Artikel und gib sie als kommagetrennte Liste zurück:\n\n{article_content[:15000]}",
-            'sentiment': f"Analysiere den Sentiment (positive, neutral oder negativ) dieses Artikels und begründe deine Analyse kurz:\n\n{article_content[:15000]}",
-            'entities': f"Identifiziere die wichtigsten Entitäten (Personen, Organisationen, Technologien) in diesem Artikel und liste sie kategorisiert auf:\n\n{article_content[:15000]}",
-            'trends': f"Identifiziere potenzielle Trends oder wichtige Entwicklungen basierend auf diesem Artikel und erkläre ihre Bedeutung:\n\n{article_content[:15000]}"
-        }
-        
-        if task not in prompts:
-            return f"Unbekannte Analyseaufgabe: {task}"
-        
-        response = model.generate_content(prompts[task])
-        return response.text
-        
-    except Exception as e:
-        return f"Fehler bei der KI-Analyse: {str(e)}"
 
 @st.cache_data(ttl=900)  # 15 Minuten Cache für Keyword-Analysen
 def get_keyword_analysis(df: pd.DataFrame) -> Dict:
@@ -689,9 +513,8 @@ def get_performance_metrics(df: pd.DataFrame) -> Dict:
     return metrics
 
 @st.cache_data(ttl=900)  # 15 Minuten Cache
-def create_author_network():
+def create_author_network(df: pd.DataFrame):
     """Erstellt das Autoren-Netzwerk"""
-    df = load_articles_data()
     if df.empty:
         return None, None
     
@@ -1240,174 +1063,357 @@ def search_articles(df: pd.DataFrame, search_term: str = "", category: str = "",
     return filtered_df
 
 def get_article_preview(url: str) -> Tuple[bool, str]:
-    """Holt eine Vorschau eines Artikels"""
+    """Fetches a preview of an article"""
     try:
         response = requests.get(url, timeout=10)
         if response.status_code != 200:
-            return False, f"HTTP Fehler: {response.status_code}"
+            return False, f"HTTP Error: {response.status_code}"
         
         soup = BeautifulSoup(response.text, 'html.parser')
-        article_content = soup.find('div', class_='article-content')
         
-        if not article_content:
-            return False, "Artikel-Inhalt konnte nicht gefunden werden"
+        # Detect source based on URL
+        is_chip = 'chip.de' in url
         
-        # Überprüfe, ob article_content ein Tag ist
-        if hasattr(article_content, 'find_all') and callable(getattr(article_content, 'find_all')):
-            # Unerwünschte Elemente entfernen
-            for ad in article_content.find_all(['div'], class_=['ad', 'ad-label']):
-                ad.decompose()
-            
-            # Nur relevante Textelemente behalten
+        if is_chip:
+            # Chip article extraction
             content_html = ""
-            for element in article_content.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
-                content_html += str(element)
-        else:
-            # Fallback für NavigableString
-            content_html = str(article_content)
+            
+            # Find all sections with article content
+            sections = soup.find_all('section')
+            for section in sections:
+                # Extract headings from section first (h2, h3)
+                heading = section.find(['h2', 'h3'], class_=['hl-sm', 'hl-md-lo'])
+                if heading:
+                    content_html += f"<h2 style='margin-top: 20px; margin-bottom: 10px;'>{heading.get_text(strip=True)}</h2>"
+                
+                # Extract images from section (before or with content)
+                figure = section.find('figure', class_='Figure')
+                if figure:
+                    img = figure.find('img')
+                    if img:
+                        img_src = img.get('src', '')
+                        img_alt = img.get('alt', '')
+                        # Check for data-src (lazy loaded images)
+                        if img.get('data-src'):
+                            img_src = img['data-src']
+                        # Skip data URIs and empty sources
+                        if img_src and not img_src.startswith('data:'):
+                            content_html += f'<figure style="margin: 20px 0;"><img src="{img_src}" alt="{img_alt}" style="max-width: 100%; height: auto; border-radius: 4px;"/>'
+                            
+                            # Add caption if exists
+                            figcaption = figure.find('figcaption')
+                            if figcaption:
+                                # Extract only the main caption text, skip metadata
+                                caption_p = figcaption.find('p', class_='copy-md')
+                                if caption_p:
+                                    caption_text = caption_p.get_text(strip=True)
+                                    if caption_text and not caption_text.startswith('Bild:'):
+                                        content_html += f'<figcaption style="margin-top: 8px; font-size: 0.9em; color: #666; font-style: italic;">{caption_text}</figcaption>'
+                            
+                            content_html += '</figure>'
+                
+                # Find the content div within section
+                content_div = section.find('div', class_='has-underlined-links')
+                if content_div:
+                    # Extract all content including paragraphs, lists, links
+                    for element in content_div.children:
+                        # Skip NavigableString elements (text nodes)
+                        if not hasattr(element, 'name'):
+                            continue
+                            
+                        if element.name == 'p':
+                            element_classes = element.get('class')
+                            if element_classes and 'mt-md' in element_classes:
+                                text_content = element.get_text(strip=True)
+                                # Skip empty paragraphs and ad disclaimers
+                                if text_content and not text_content.startswith('Unabhängig und kostenlos') and not text_content.startswith('Lesetipp:'):
+                                    # Keep links within paragraphs
+                                    content_html += str(element)
+                        elif element.name == 'ul':
+                            # Include unordered lists with links
+                            content_html += str(element)
+                        elif element.name == 'ol':
+                            # Include ordered lists
+                            content_html += str(element)
+            
+            if not content_html.strip():
+                return False, "Chip article content could not be extracted"
         
-        if not content_html.strip():
-            return False, "Artikel-Inhalt konnte nicht extrahiert werden"
+        else:
+            # Heise article extraction (original logic)
+            article_content = soup.find('div', class_='article-content')
+            
+            if not article_content:
+                return False, "Article content could not be found"
+            
+            # Check if article_content is a Tag
+            if hasattr(article_content, 'find_all') and callable(getattr(article_content, 'find_all')):
+                # Remove unwanted elements
+                for ad in article_content.find_all(['div'], class_=['ad', 'ad-label']):
+                    ad.decompose()
+                
+                # Keep only relevant text elements
+                content_html = ""
+                for element in article_content.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+                    content_html += str(element)
+            else:
+                # Fallback for NavigableString
+                content_html = str(article_content)
+            
+            if not content_html.strip():
+                return False, "Article content could not be extracted"
         
         return True, content_html
         
     except Exception as e:
         return False, str(e)
 
+@st.dialog("📄 Article Preview", width="large")
+def show_article_preview_dialog(article_title: str, article_url: str):
+    """Shows article preview in a full dialog modal"""
+    st.subheader(article_title)
+    st.markdown("---")
+    
+    with st.spinner("Loading article..."):
+        success, content = get_article_preview(article_url)
+    
+    if success:
+        # Show article content with links preserved
+        st.markdown(content, unsafe_allow_html=True)
+    else:
+        st.error(f"Error loading: {content}")
+
 def main():
-    """Hauptfunktion der Streamlit-App"""
+    """Main function of the Streamlit app"""
     
     # Header
     st.markdown('<h1 class="main-header">🗞️ News Mining Dashboard</h1>', unsafe_allow_html=True)
     
-    # Sidebar für Navigation
+    # Sidebar for Navigation
     st.sidebar.title("Navigation")
     page = st.sidebar.selectbox(
-        "Seite auswählen",
-        ["📊 Dashboard", "📅 Zeitanalysen", "🔑 Keyword-Analysen", "⚡ Performance-Metriken", 
-         "🔍 Artikelsuche", "🕸️ Autoren-Netzwerk", "📈 Analysen", "🤖 KI-Analysen", "🔧 SQL-Abfragen"]
+        "Select Page",
+        ["📊 Dashboard", "📅 Time Analytics", "🔑 Keyword Analytics", "⚡ Performance Metrics", 
+         "🔍 Article Search", "🕸️ Author Network", "📈 Analytics", "🤖 AI Analytics", "🔧 SQL Queries"]
     )
     
-    # Daten laden mit Fortschrittsanzeige
-    with st.spinner("Lade Daten aus der Datenbank..."):
+    # Load data with progress indicator
+    with st.spinner("Loading data from database..."):
         df = load_articles_data()
     
     if df.empty:
-        st.error("❌ Keine Daten verfügbar. Überprüfen Sie die Datenbankverbindung.")
-        st.info("💡 Stellen Sie sicher, dass:")
-        st.info("• Die .env-Datei korrekt konfiguriert ist")
-        st.info("• Die Datenbank erreichbar ist")
-        st.info("• Die Tabelle 'articles' existiert und Daten enthält")
+        st.error("❌ No data available. Check database connection.")
+        st.info("💡 Make sure that:")
+        st.info("• The .env file is correctly configured")
+        st.info("• The database is accessible")
+        st.info("• The 'articles' table exists and contains data")
         return
     
-    # Informationen über die geladenen Daten
+    # Information about loaded data
     st.sidebar.markdown("---")
-    st.sidebar.subheader("📊 Daten-Info")
-    st.sidebar.metric("Artikel gesamt", len(df))
-    st.sidebar.metric("Anzahl Autoren", df['author'].nunique())
-    st.sidebar.metric("Anzahl Kategorien", df['category'].nunique())
+    st.sidebar.subheader("📊 Data Info")
+    st.sidebar.metric("Total Articles", len(df))
+    st.sidebar.metric("Number of Authors", df['author'].nunique())
+    st.sidebar.metric("Number of Categories", df['category'].nunique())
     
-    # Cache-Status
-    if st.sidebar.button("🔄 Cache leeren"):
+    # Global Source Filter in Sidebar
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🎯 Source Filter")
+    source_filter = st.sidebar.multiselect(
+        "Select Sources",
+        options=['heise', 'chip'],
+        default=['heise', 'chip'],
+        help="Choose data sources for analysis"
+    )
+    
+    # Filter dataframe by source
+    if source_filter:
+        df = df[df['source'].isin(source_filter)]
+    else:
+        st.sidebar.warning("⚠️ Please select at least one source")
+        return
+    
+    if df.empty:
+        st.error("⚠️ No data available for selected sources.")
+        return
+    
+    # Update metrics after filtering
+    st.sidebar.metric("✅ Filtered Articles", len(df))
+    
+    # Cache status
+    if st.sidebar.button("🔄 Clear Cache"):
         st.cache_data.clear()
-        st.sidebar.success("Cache geleert!")
+        st.sidebar.success("Cache cleared!")
         st.rerun()
     
-    # Seitenbasierte Navigation
+    # Page-based navigation
     if page == "📊 Dashboard":
         show_dashboard(df)
-    elif page == "📅 Zeitanalysen":
+    elif page == "📅 Time Analytics":
         show_time_analytics(df)
-    elif page == "🔑 Keyword-Analysen":
+    elif page == "🔑 Keyword Analytics":
         show_keyword_analytics(df)
-    elif page == "⚡ Performance-Metriken":
+    elif page == "⚡ Performance Metrics":
         show_performance_metrics(df)
-    elif page == "🔍 Artikelsuche":
+    elif page == "🔍 Article Search":
         show_article_search(df)
-    elif page == "🕸️ Autoren-Netzwerk":
+    elif page == "🕸️ Author Network":
         show_author_network(df)
-    elif page == "🤖 KI-Analysen":
-        show_ai_analytics(df)
-    elif page == "📈 Analysen":
+    elif page == "📈 Analytics":
         show_analytics(df)
-    elif page == "🔧 SQL-Abfragen":
+    elif page == "🔧 SQL Queries":
         show_sql_queries()
 
 def show_dashboard(df: pd.DataFrame):
-    """Zeigt das kompakte Hauptdashboard"""
-    st.header("📊 Dashboard Übersicht")
+    """Shows the compact main dashboard"""
+    st.header("📊 Dashboard Overview")
     
-    # Allgemeine Informationen
-    st.subheader("📈 Allgemeine Informationen")
+    # General Information
+    st.subheader("📈 General Information")
     
-    # Einfache Dashboard-Statistiken in 4 Karten
+    # Simple dashboard statistics in 4 cards
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Gesamtartikel", len(df))
+        st.metric("Total Articles", len(df))
     
     with col2:
-        # Artikel der letzten 24 Stunden
+        # Articles from last 24 hours
         last_24h = df[df['date'] >= (datetime.now() - timedelta(hours=24))]
-        st.metric("Letzte 24h", len(last_24h))
+        st.metric("Last 24h", len(last_24h))
     
     with col3:
-        # Anzahl der Autoren
-        st.metric("Autoren", df['author'].nunique())
+        # Number of authors
+        st.metric("Authors", df['author'].nunique())
         
     with col4:
-        # Anzahl der Kategorien
-        st.metric("Kategorien", df['category'].nunique())
+        # Number of categories
+        st.metric("Categories", df['category'].nunique())
     
-    # Top Wörter anzeigen
-    st.subheader("🔠 Häufigste Begriffe")
+    # Show top words
+    st.subheader("🔠 Most Common Terms")
     
     word_cloud_data = generate_word_cloud_data(df)
     if word_cloud_data:
-        # Die Top 10 Wörter anzeigen
+        # Show top 10 words
         top_words = list(word_cloud_data.items())[:10]
         
-        # Horizontale Balken für die Top-Wörter
+        # Horizontal bars for top words
         col1, col2 = st.columns([3, 1])
         
         with col1:
-            word_df = pd.DataFrame(top_words, columns=['Begriff', 'Häufigkeit'])
+            word_df = pd.DataFrame(top_words, columns=['Term', 'Frequency'])
             fig = px.bar(
                 word_df,
-                x='Häufigkeit',
-                y='Begriff',
+                x='Frequency',
+                y='Term',
                 orientation='h',
-                title='Top 10 häufigste Begriffe',
+                title="Top 10 Most Common Terms",
                 height=300
             )
             fig.update_layout(margin=dict(l=0, r=10, t=30, b=0))
             st.plotly_chart(fig, use_container_width=True)
             
         with col2:
-            st.write("**Top Begriffe:**")
+            st.write("**Top Terms:**")
             for word, count in top_words[:5]:
                 st.write(f"• **{word}**: {count}×")
     
-    # Aktuelle Artikel - die neuesten 10 anzeigen
-    st.subheader("🆕 Neueste Artikel")
+    # Current articles - show the newest 10
+    st.subheader("🆕 Latest Articles")
     
-    # Die ersten 10 Artikel anzeigen
+    # Show first 10 articles
     recent_articles = df.head(10)
     
-    for _, article in recent_articles.iterrows():
-        with st.container():
-            st.markdown(f"""
-            <div style="border-bottom: 1px solid #eaeaea; padding: 12px 0; margin-bottom: 8px;">
-                <h4 style="margin: 0 0 6px 0; font-weight: 500;">
-                    <a href="{article['url']}" target="_blank" style="color: #1a73e8; text-decoration: none;">{article['title']}</a>
-                </h4>
-                <div style="display: flex; flex-wrap: wrap; font-size: 0.85em; color: #707070; margin-bottom: 4px;">
-                    <span style="margin-right: 12px;">{article['date'].strftime('%Y-%m-%d') if pd.notna(article['date']) else 'N/A'}</span>
-                    <span style="margin-right: 12px;">{article['author'] if pd.notna(article['author']) else 'N/A'}</span>
-                    <span>{article['category'] if pd.notna(article['category']) else 'N/A'}</span>
+    for idx, article in recent_articles.iterrows():
+        # Check if article has an image
+        has_image = pd.notna(article.get('image_url')) and article.get('image_url')
+        
+        if has_image:
+            # Layout with image
+            col_img, col_content, col_btn = st.columns([1, 4, 1])
+            
+            with col_img:
+                try:
+                    st.image(article['image_url'], width="stretch")
+                except:
+                    st.write("🖼️")
+            
+            with col_content:
+                st.markdown(f"""
+                <div style="padding: 12px 0; margin-bottom: 8px;">
+                    <h4 style="margin: 0 0 6px 0; font-weight: 500;">
+                        <a href="{article['url']}" target="_blank" style="color: #1a73e8; text-decoration: none;">{article['title']}</a>
+                    </h4>
+                    <div style="font-size: 0.85em; color: #707070; margin-bottom: 4px;">
+                        <span style="margin-right: 12px;">📅 {article['date'].strftime('%Y-%m-%d %H:%M') if pd.notna(article['date']) else 'N/A'}</span>
+                        <span style="margin-right: 12px;">✍️ {article['author'] if pd.notna(article['author']) else 'N/A'}</span>
+                        <span>📁 {article['category'] if pd.notna(article['category']) else 'N/A'}</span>
+                        {'<span style="margin-left: 12px;">🔵 Heise</span>' if article['source'] == 'heise' else '<span style="margin-left: 12px;">🟠 Chip</span>'}
+                    </div>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+                
+                # Show description for chip articles
+                if pd.notna(article.get('description')) and article['source'] == 'chip':
+                    st.caption(article['description'][:150] + "..." if len(str(article['description'])) > 150 else article['description'])
+                
+                # Show category hierarchy for chip articles
+                if article['source'] == 'chip':
+                    category_parts = []
+                    if pd.notna(article.get('page_level1')):
+                        category_parts.append(article['page_level1'])
+                    if pd.notna(article.get('page_level2')):
+                        category_parts.append(article['page_level2'])
+                    if pd.notna(article.get('page_level3')):
+                        category_parts.append(article['page_level3'])
+                    
+                    if category_parts:
+                        st.caption(f"🗂️ {' → '.join(category_parts)}")
+            
+            with col_btn:
+                # Preview button
+                if st.button("📖", key=f"preview_dash_{article['id']}_{idx}", help="Preview article"):
+                    show_article_preview_dialog(article['title'], article['url'])
+        else:
+            # Layout without image (original)
+            col1, col2 = st.columns([5, 1])
+            
+            with col1:
+                st.markdown(f"""
+                <div style="border-bottom: 1px solid #eaeaea; padding: 12px 0; margin-bottom: 8px;">
+                    <h4 style="margin: 0 0 6px 0; font-weight: 500;">
+                        <a href="{article['url']}" target="_blank" style="color: #1a73e8; text-decoration: none;">{article['title']}</a>
+                    </h4>
+                    <div style="display: flex; flex-wrap: wrap; font-size: 0.85em; color: #707070; margin-bottom: 4px;">
+                        <span style="margin-right: 12px;">📅 {article['date'].strftime('%Y-%m-%d') if pd.notna(article['date']) else 'N/A'}</span>
+                        <span style="margin-right: 12px;">✍️ {article['author'] if pd.notna(article['author']) else 'N/A'}</span>
+                        <span>📁 {article['category'] if pd.notna(article['category']) else 'N/A'}</span>
+                        {'<span style="margin-left: 12px;">🔵 Heise</span>' if article['source'] == 'heise' else '<span style="margin-left: 12px;">🟠 Chip</span>'}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Show category hierarchy for chip articles
+                if article['source'] == 'chip':
+                    category_parts = []
+                    if pd.notna(article.get('page_level1')):
+                        category_parts.append(article['page_level1'])
+                    if pd.notna(article.get('page_level2')):
+                        category_parts.append(article['page_level2'])
+                    if pd.notna(article.get('page_level3')):
+                        category_parts.append(article['page_level3'])
+                    
+                    if category_parts:
+                        st.caption(f"🗂️ {' → '.join(category_parts)}")
+            
+            with col2:
+                # Preview button for each article
+                if st.button("📖 Preview", key=f"preview_dash_{article['id']}_{idx}"):
+                    show_article_preview_dialog(article['title'], article['url'])
+        
+        # Divider between articles
+        st.markdown("---")
 
 
 def show_time_analytics(df: pd.DataFrame):
@@ -1681,8 +1687,26 @@ def show_keyword_analytics(df: pd.DataFrame):
     keyword_article_data = []
     
     for idx, row in df.iterrows():
+        keywords = []
+        
+        # Extract keywords from 'keywords' field (Heise)
         if pd.notna(row['keywords']) and row['keywords'] != 'N/A':
-            keywords = [k.strip() for k in str(row['keywords']).split(',')]
+            keywords.extend([k.strip() for k in str(row['keywords']).split(',')])
+        
+        # Extract keywords from page_level fields (Chip)
+        if row['source'] == 'chip':
+            if pd.notna(row.get('page_level1')) and row.get('page_level1') != 'Unknown':
+                keywords.append(str(row['page_level1']).strip())
+            if pd.notna(row.get('page_level2')) and row.get('page_level2') != 'Unknown':
+                # Split by underscore or space for compound keywords
+                level2 = str(row['page_level2']).replace('_', ' ').strip()
+                keywords.append(level2)
+            if pd.notna(row.get('page_level3')) and row.get('page_level3') != 'Unknown':
+                level3 = str(row['page_level3']).replace('_', ' ').strip()
+                keywords.append(level3)
+        
+        # Add to collections if keywords found
+        if keywords:
             all_keywords.extend(keywords)
             
             for keyword in keywords:
@@ -1691,7 +1715,8 @@ def show_keyword_analytics(df: pd.DataFrame):
                     'category': row['category'],
                     'author': row['author'],
                     'date': row['date'],
-                    'word_count': row['word_count']
+                    'word_count': row['word_count'],
+                    'source': row['source']
                 })
     
     if not all_keywords:
@@ -2218,44 +2243,54 @@ def show_performance_metrics(df: pd.DataFrame):
                 st.write("---")
 
 def show_article_search(df: pd.DataFrame):
-    """Zeigt die Artikelsuche"""
-    st.header("🔍 Artikelsuche")
+    """Shows the article search"""
+    st.header("🔍 Article Search")
     
-    # Suchformular
+    # Check if we need to show preview dialog from session state
+    if st.session_state.get('show_preview', False):
+        show_article_preview_dialog(
+            st.session_state.get('preview_title', ''),
+            st.session_state.get('preview_url', '')
+        )
+        # Clear the session state
+        st.session_state['show_preview'] = False
+    
+    # Search form
     with st.form("search_form"):
         col1, col2 = st.columns(2)
         
         with col1:
-            search_term = st.text_input("Suchbegriff", placeholder="Titel oder Schlagwörter durchsuchen...")
-            category = st.selectbox("Kategorie", ["Alle"] + get_categories())
+            search_term = st.text_input("Search Term", placeholder="Search titles or keywords...")
+            category = st.selectbox("Category", ["All"] + get_categories())
             
         with col2:
-            author = st.text_input("Autor", placeholder="Autor suchen...")
-            sort_option = st.selectbox("Sortierung", 
-                                     ["Neueste zuerst", "Älteste zuerst", "Titel (A-Z)", "Titel (Z-A)"])
+            author = st.text_input("Author", placeholder="Search author...")
+            sort_option = st.selectbox("Sort By", 
+                                     ["Newest First", "Oldest First", "Title (A-Z)", "Title (Z-A)"])
         
         col3, col4 = st.columns(2)
         with col3:
-            date_from = st.date_input("Datum von", value=None)
+            date_from = st.date_input("Date From", value=None)
         with col4:
-            date_to = st.date_input("Datum bis", value=None)
+            date_to = st.date_input("Date To", value=None)
         
-        submitted = st.form_submit_button("🔍 Suchen", type="primary")
+        submitted = st.form_submit_button("🔍 Search", type="primary")
     
-    # Suchparameter verarbeiten
-    category_filter = None if category == "Alle" else category
+    # Process search parameters
+    category_filter = None if category == "All" else category
     
+    # Sort mapping
     sort_mapping = {
-        "Neueste zuerst": ("date", False),
-        "Älteste zuerst": ("date", True),
-        "Titel (A-Z)": ("title", True),
-        "Titel (Z-A)": ("title", False)
+        "Newest First": ("date", False),
+        "Oldest First": ("date", True),
+        "Title (A-Z)": ("title", True),
+        "Title (Z-A)": ("title", False)
     }
     sort_by, ascending = sort_mapping[sort_option]
     
-    # Suche durchführen
+    # Perform search
     if submitted or any([search_term, category_filter, author, date_from, date_to]):
-        with st.spinner("Suche wird durchgeführt..."):
+        with st.spinner('Performing search...'):
             results = search_articles(
                 df, search_term, category_filter or "", author, 
                 pd.to_datetime(date_from) if date_from else None,
@@ -2263,12 +2298,12 @@ def show_article_search(df: pd.DataFrame):
                 sort_by, ascending
             )
         
-        st.subheader(f"📋 Suchergebnisse ({len(results)} Artikel)")
+        st.subheader(f"📋 Search Results ({len(results)} Articles)")
         
         if not results.empty:
-            # Erweiterte Paginierung
+            # Enhanced pagination
             items_per_page = st.select_slider(
-                "Artikel pro Seite:", 
+                "Articles per page:", 
                 options=[10, 20, 50, 100], 
                 value=20,
                 key="articles_per_page"
@@ -2280,7 +2315,7 @@ def show_article_search(df: pd.DataFrame):
                 col1, col2, col3 = st.columns([1, 2, 1])
                 with col2:
                     page_num = st.number_input(
-                        f"Seite (1-{total_pages})", 
+                        f"Page (1-{total_pages})", 
                         min_value=1, 
                         max_value=total_pages, 
                         value=1,
@@ -2291,37 +2326,104 @@ def show_article_search(df: pd.DataFrame):
                 end_idx = start_idx + items_per_page
                 page_results = results.iloc[start_idx:end_idx]
                 
-                # Paginierungs-Info
-                st.info(f"Zeige Artikel {start_idx + 1}-{min(end_idx, len(results))} von {len(results)}")
+                # Pagination info
+                st.info(f"Showing articles {start_idx + 1}-{min(end_idx, len(results))} of {len(results)}")
             else:
                 page_results = results
             
-            # Artikel anzeigen - optimiert
+            # Display articles - optimized with modal preview
             for i, (_, article) in enumerate(page_results.iterrows()):
                 with st.expander(f"📄 {article['title']}", expanded=False):
-                    col1, col2 = st.columns([3, 1])
+                    # Check if article has an image
+                    has_image = pd.notna(article.get('image_url')) and article.get('image_url')
                     
-                    with col1:
-                        st.markdown(f"**📅 Datum:** {article['date'].strftime('%Y-%m-%d %H:%M') if pd.notna(article['date']) else 'N/A'}")
-                        st.markdown(f"**✍️ Autor:** {article['author'] if pd.notna(article['author']) else 'N/A'}")
-                        st.markdown(f"**🏷️ Kategorie:** {article['category'] if pd.notna(article['category']) else 'N/A'}")
+                    if has_image:
+                        col_img, col_content, col_btn = st.columns([1, 3, 1])
                         
-                        if pd.notna(article['keywords']) and article['keywords'] != 'N/A':
-                            st.markdown(f"**🔑 Schlagwörter:** {article['keywords']}")
+                        with col_img:
+                            try:
+                                st.image(article['image_url'], width="stretch")
+                                if pd.notna(article.get('image_caption')):
+                                    st.caption(article['image_caption'][:100])
+                            except:
+                                st.write("🖼️")
                         
-                        if pd.notna(article['word_count']):
-                            st.markdown(f"**📝 Wörter:** {int(article['word_count'])}")
-                    
-                    with col2:
-                        st.markdown(f"**[🔗 Artikel öffnen]({article['url']})**")
+                        with col_content:
+                            st.markdown(f"**📅 Date:** {article['date'].strftime('%Y-%m-%d %H:%M') if pd.notna(article['date']) else 'N/A'}")
+                            st.markdown(f"**✍️ Author:** {article['author'] if pd.notna(article['author']) else 'N/A'}")
+                            st.markdown(f"**🏷️ Category:** {article['category'] if pd.notna(article['category']) else 'N/A'}")
+                            st.markdown(f"**📍 Source:** {'🔵 Heise' if article['source'] == 'heise' else '🟠 Chip'}")
+                            
+                            # Show category hierarchy for chip articles
+                            if article['source'] == 'chip':
+                                category_parts = []
+                                if pd.notna(article.get('page_level1')):
+                                    category_parts.append(article['page_level1'])
+                                if pd.notna(article.get('page_level2')):
+                                    category_parts.append(article['page_level2'])
+                                if pd.notna(article.get('page_level3')):
+                                    category_parts.append(article['page_level3'])
+                                
+                                if category_parts:
+                                    st.markdown(f"**🗂️ Path:** {' → '.join(category_parts)}")
+                            
+                            if pd.notna(article.get('description')) and article['source'] == 'chip':
+                                st.markdown(f"**📝 Description:** {article['description'][:200]}..." if len(str(article['description'])) > 200 else article['description'])
+                            
+                            if pd.notna(article['keywords']) and article['keywords'] != 'N/A':
+                                st.markdown(f"**🔑 Keywords:** {article['keywords']}")
+                            
+                            if pd.notna(article['word_count']):
+                                st.markdown(f"**📊 Words:** {int(article['word_count'])}")
+                            
+                            if pd.notna(article.get('video_url')):
+                                st.markdown(f"**🎥 Video:** Available")
                         
-                        if st.button("📖 Vorschau", key=f"preview_{article['id']}_{i}"):
-                            with st.spinner("Artikel wird geladen..."):
-                                success, content = get_article_preview(article['url'])
-                                if success:
-                                    st.markdown(content, unsafe_allow_html=True)
-                                else:
-                                    st.error(f"Fehler beim Laden: {content}")
+                        with col_btn:
+                            st.markdown(f"**[🔗 Open]({article['url']})**")
+                            
+                            # Preview Button with Dialog Modal
+                            preview_key = f"preview_{article['id']}_{i}"
+                            if st.button("📖 Preview", key=preview_key):
+                                show_article_preview_dialog(article['title'], article['url'])
+                    else:
+                        col1, col2 = st.columns([3, 1])
+                        
+                        with col1:
+                            st.markdown(f"**📅 Date:** {article['date'].strftime('%Y-%m-%d %H:%M') if pd.notna(article['date']) else 'N/A'}")
+                            st.markdown(f"**✍️ Author:** {article['author'] if pd.notna(article['author']) else 'N/A'}")
+                            st.markdown(f"**🏷️ Category:** {article['category'] if pd.notna(article['category']) else 'N/A'}")
+                            st.markdown(f"**📍 Source:** {'🔵 Heise' if article['source'] == 'heise' else '🟠 Chip'}")
+                            
+                            # Show category hierarchy for chip articles
+                            if article['source'] == 'chip':
+                                category_parts = []
+                                if pd.notna(article.get('page_level1')):
+                                    category_parts.append(article['page_level1'])
+                                if pd.notna(article.get('page_level2')):
+                                    category_parts.append(article['page_level2'])
+                                if pd.notna(article.get('page_level3')):
+                                    category_parts.append(article['page_level3'])
+                                
+                                if category_parts:
+                                    st.markdown(f"**🗂️ Path:** {' → '.join(category_parts)}")
+                            
+                            if pd.notna(article['keywords']) and article['keywords'] != 'N/A':
+                                st.markdown(f"**🔑 Keywords:** {article['keywords']}")
+                            
+                            if pd.notna(article['word_count']):
+                                st.markdown(f"**📝 Words:** {int(article['word_count'])}")
+                        
+                        with col2:
+                            st.markdown(f"**[🔗 Open Article]({article['url']})**")
+                            
+                            # Preview Button - set session state to trigger dialog
+                            preview_key = f"preview_{article['id']}_{i}"
+                            if st.button("📖 Preview", key=preview_key):
+                                st.session_state['show_preview'] = True
+                                st.session_state['preview_title'] = article['title']
+                                st.session_state['preview_url'] = article['url']
+                                st.rerun()
             
             # Export-Optionen
             if len(results) > 0:
@@ -2357,453 +2459,12 @@ def show_article_search(df: pd.DataFrame):
             st.markdown("• Entfernen Sie Filter, um mehr Ergebnisse zu erhalten")
             st.markdown("• Nutzen Sie Teilwörter anstatt ganzer Begriffe")
 
-def show_ai_analytics(df: pd.DataFrame):
-    """Zeigt KI-basierte Analysen"""
-    st.header("🤖 KI-gestützte Analysen")
-    
-    # API-Key prüfen
-    if not GOOGLE_API_KEY:
-        st.error("Kein Google API-Schlüssel konfiguriert. Bitte fügen Sie einen Schlüssel in der .env-Datei hinzu.")
-        st.code("GOOGLE_API_KEY=your_api_key_here", language="bash")
-        return
-    
-    # Tabs für verschiedene KI-Analysen
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "🧠 Topic Modeling", 
-        "🔍 Artikel-Clusters", 
-        "😊 Sentiment-Analyse", 
-        "🤖 KI-Analyse", 
-        "🔮 Trend-Prognose"
-    ])
-    
-    # 1. Topic Modeling Tab
-    with tab1:
-        st.subheader("🧠 Topic Modeling")
-        st.write("Diese Analyse identifiziert die Hauptthemen in den Artikeln mittels maschinellem Lernen.")
-        
-        col1, col2 = st.columns([1, 2])
-        
-        with col1:
-            method = st.selectbox(
-                "Methode auswählen",
-                ["LDA (Latent Dirichlet Allocation)", "NMF (Non-Negative Matrix Factorization)"],
-                key="topic_method"
-            )
-            n_topics = st.slider("Anzahl der Themen", 3, 12, 5, key="n_topics")
-            
-            # Filteroptionen
-            category = st.selectbox("Nach Kategorie filtern", ["Alle"] + get_categories(), key="topic_category")
-            timeframe = st.selectbox(
-                "Zeitraum", 
-                ["Letzter Monat", "Letzte Woche", "Letzter Tag", "Alle"], 
-                key="topic_timeframe"
-            )
-            
-            analyze_button = st.button("▶️ Themen analysieren", key="analyze_topics")
-        
-        with col2:
-            if analyze_button:
-                # Filtere die Daten basierend auf den ausgewählten Filtern
-                filtered_df = df.copy()
-                
-                if category != "Alle":
-                    filtered_df = filtered_df[filtered_df['category'] == category]
-                
-                # Zeitfilter anwenden
-                now = datetime.now()
-                if timeframe == "Letzter Monat":
-                    filtered_df = filtered_df[filtered_df['date'] >= (now - timedelta(days=30))]
-                elif timeframe == "Letzte Woche":
-                    filtered_df = filtered_df[filtered_df['date'] >= (now - timedelta(days=7))]
-                elif timeframe == "Letzter Tag":
-                    filtered_df = filtered_df[filtered_df['date'] >= (now - timedelta(days=1))]
-                
-                # Topic Modeling durchführen
-                with st.spinner("Analysiere Themen in den Artikeln..."):
-                    method_key = 'lda' if "LDA" in method else 'nmf'
-                    results = extract_topics(filtered_df, n_topics=n_topics, method=method_key)
-                
-                if results['topics']:
-                    for i, topic_words in enumerate(results['topics']):
-                        topic_text = ", ".join(topic_words)
-                        st.markdown(f"**Thema {i+1}:** {topic_text}")
-                        st.write("---")
-                    
-                    # Zeige Artikel zu Themen
-                    st.subheader("Artikel nach Themen")
-                    selected_topic = st.selectbox(
-                        "Thema auswählen", 
-                        [f"Thema {i+1}" for i in range(len(results['topics']))],
-                        key="select_topic_view"
-                    )
-                    
-                    topic_idx = int(selected_topic.split()[1]) - 1
-                    topic_articles = [a for a in results['article_topics'] if a['topic'] == topic_idx]
-                    
-                    if topic_articles:
-                        for article in topic_articles[:5]:  # Zeige Top 5
-                            article_id = article['article_id']
-                            article_row = df[df['id'] == article_id]
-                            if not article_row.empty:
-                                st.write(f"📄 **{article_row['title'].iloc[0]}**")
-                                st.write(f"Zuversicht: {article['confidence']:.2f}")
-                                st.write(f"[Zum Artikel]({article_row['url'].iloc[0]})")
-                                st.write("---")
-                else:
-                    st.warning("Keine ausreichenden Daten für Topic Modeling gefunden.")
-    
-    # 2. Artikel-Clustering Tab
-    with tab2:
-        st.subheader("🔍 Artikel-Clustering")
-        st.write("Diese Analyse gruppiert ähnliche Artikel mittels K-Means-Clustering.")
-        
-        col1, col2 = st.columns([1, 2])
-        
-        with col1:
-            n_clusters = st.slider("Anzahl der Cluster", 3, 10, 5, key="n_clusters")
-            
-            # Filteroptionen
-            category = st.selectbox("Nach Kategorie filtern", ["Alle"] + get_categories(), key="cluster_category")
-            timeframe = st.selectbox(
-                "Zeitraum", 
-                ["Letzter Monat", "Letzte Woche", "Letzter Tag", "Alle"], 
-                key="cluster_timeframe"
-            )
-            
-            cluster_button = st.button("▶️ Artikel clustern", key="cluster_articles")
-        
-        with col2:
-            if cluster_button:
-                # Filtere die Daten basierend auf den ausgewählten Filtern
-                filtered_df = df.copy()
-                
-                if category != "Alle":
-                    filtered_df = filtered_df[filtered_df['category'] == category]
-                
-                # Zeitfilter anwenden
-                now = datetime.now()
-                if timeframe == "Letzter Monat":
-                    filtered_df = filtered_df[filtered_df['date'] >= (now - timedelta(days=30))]
-                elif timeframe == "Letzte Woche":
-                    filtered_df = filtered_df[filtered_df['date'] >= (now - timedelta(days=7))]
-                elif timeframe == "Letzter Tag":
-                    filtered_df = filtered_df[filtered_df['date'] >= (now - timedelta(days=1))]
-                
-                # Clustering durchführen
-                with st.spinner("Clustere Artikel..."):
-                    results = cluster_articles(filtered_df, n_clusters=n_clusters)
-                
-                if results['clusters']:
-                    # Zeige Cluster-Keywords
-                    for i, keywords in enumerate(results['cluster_keywords']):
-                        keywords_text = ", ".join(keywords) if keywords else "Keine Keywords verfügbar"
-                        st.markdown(f"**Cluster {i+1}:** {keywords_text}")
-                        st.write("---")
-                    
-                    # Zeige Artikel nach Clustern
-                    st.subheader("Artikel nach Clustern")
-                    selected_cluster = st.selectbox(
-                        "Cluster auswählen", 
-                        [f"Cluster {i+1}" for i in range(n_clusters)],
-                        key="select_cluster_view"
-                    )
-                    
-                    cluster_idx = int(selected_cluster.split()[1]) - 1
-                    cluster_articles = [a for a in results['clusters'] if a['cluster'] == cluster_idx]
-                    
-                    if cluster_articles:
-                        for article in cluster_articles[:5]:  # Zeige Top 5
-                            article_id = article['article_id']
-                            article_row = df[df['id'] == article_id]
-                            if not article_row.empty:
-                                st.write(f"📄 **{article_row['title'].iloc[0]}**")
-                                st.write(f"[Zum Artikel]({article_row['url'].iloc[0]})")
-                                st.write("---")
-                else:
-                    st.warning("Keine ausreichenden Daten für das Clustering gefunden.")
-    
-    # 3. Sentiment-Analyse Tab
-    with tab3:
-        st.subheader("😊 Sentiment-Analyse")
-        st.write("Diese Analyse untersucht die emotionale Tendenz der Artikel.")
-        
-        # Warnung anzeigen, wenn TextBlob-DE nicht verfügbar ist
-        if not TEXTBLOB_DE_AVAILABLE:
-            st.info("Hinweis: TextBlob-DE ist nicht installiert. Die Analyse verwendet standard TextBlob, was für deutsche Texte weniger präzise sein kann. Für bessere Ergebnisse installieren Sie TextBlob-DE mit `pip install textblob-de`.")
-        
-        col1, col2 = st.columns([1, 2])
-        
-        with col1:
-            # Filteroptionen
-            category = st.selectbox("Nach Kategorie filtern", ["Alle"] + get_categories(), key="sentiment_category")
-            timeframe = st.selectbox(
-                "Zeitraum", 
-                ["Letzter Monat", "Letzte Woche", "Letzter Tag", "Alle"], 
-                key="sentiment_timeframe"
-            )
-            num_articles = st.slider("Anzahl der Artikel", 5, 50, 10, key="sentiment_num_articles")
-            
-            sentiment_button = st.button("▶️ Sentiment analysieren", key="analyze_sentiment")
-        
-        with col2:
-            if sentiment_button:
-                # Filtere die Daten
-                filtered_df = df.copy()
-                
-                if category != "Alle":
-                    filtered_df = filtered_df[filtered_df['category'] == category]
-                
-                # Zeitfilter anwenden
-                now = datetime.now()
-                if timeframe == "Letzter Monat":
-                    filtered_df = filtered_df[filtered_df['date'] >= (now - timedelta(days=30))]
-                elif timeframe == "Letzte Woche":
-                    filtered_df = filtered_df[filtered_df['date'] >= (now - timedelta(days=7))]
-                elif timeframe == "Letzter Tag":
-                    filtered_df = filtered_df[filtered_df['date'] >= (now - timedelta(days=1))]
-                
-                # Begrenze auf angegebene Anzahl
-                filtered_df = filtered_df.head(num_articles)
-                
-                # Lade Inhalte und analysiere Sentiment
-                contents = []
-                titles = []
-                urls = []
-                
-                with st.spinner("Lade Artikelinhalte..."):
-                    for _, row in filtered_df.iterrows():
-                        content = get_article_content(row['id'])
-                        if content:
-                            contents.append(content)
-                            titles.append(row['title'])
-                            urls.append(row['url'])
-                
-                if contents:
-                    with st.spinner("Analysiere Sentiment..."):
-                        sentiments = analyze_sentiment(contents)
-                    
-                    # Visualisiere die Ergebnisse
-                    sentiment_data = pd.DataFrame({
-                        'Titel': titles,
-                        'Polarität': [s['polarity'] for s in sentiments],
-                        'Subjektivität': [s['subjectivity'] for s in sentiments],
-                        'URL': urls
-                    })
-                    
-                    # Zeige Graph
-                    fig = px.scatter(
-                        sentiment_data,
-                        x='Subjektivität',
-                        y='Polarität',
-                        hover_name='Titel',
-                        color='Polarität',
-                        color_continuous_scale='RdYlGn',
-                        title='Sentiment-Analyse der Artikel',
-                        labels={
-                            'Polarität': 'Sentiment (negativ → positiv)',
-                            'Subjektivität': 'Subjektivität (objektiv → subjektiv)'
-                        }
-                    )
-                    
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Zeige die Daten in einer Tabelle
-                    st.write("### Sentiment-Daten")
-                    sentiment_table = sentiment_data.copy()
-                    sentiment_table['Polarität'] = sentiment_table['Polarität'].round(2)
-                    sentiment_table['Subjektivität'] = sentiment_table['Subjektivität'].round(2)
-                    sentiment_table['Stimmung'] = sentiment_table['Polarität'].apply(
-                        lambda x: "Positiv" if x > 0.05 else "Negativ" if x < -0.05 else "Neutral"
-                    )
-                    
-                    # Hyperlinks hinzufügen
-                    sentiment_table['Artikel'] = sentiment_table.apply(
-                        lambda row: f"<a href='{row['URL']}' target='_blank'>{row['Titel']}</a>", 
-                        axis=1
-                    )
-                    
-                    st.write(sentiment_table[['Artikel', 'Stimmung', 'Polarität', 'Subjektivität']].to_html(escape=False), unsafe_allow_html=True)
-                else:
-                    st.warning("Keine Artikelinhalte für die Analyse gefunden.")
-    
-    # 4. KI-Analyse Tab (mit Google Generative AI)
-    with tab4:
-        st.subheader("🤖 KI-Artikelanalyse mit Google Gemini")
-        st.write("Diese Funktion nutzt Google Gemini für eine tiefe Analyse einzelner Artikel.")
-        
-        col1, col2 = st.columns([1, 2])
-        
-        with col1:
-            # Artikel-Auswahl
-            article_id = st.selectbox(
-                "Artikel auswählen",
-                df['id'].tolist(),
-                format_func=lambda x: df[df['id'] == x]['title'].iloc[0] if len(df[df['id'] == x]) > 0 else str(x),
-                key="ai_article_select"
-            )
-            
-            analysis_type = st.selectbox(
-                "Analysetyp",
-                ["Zusammenfassung", "Schlüsselwörter", "Sentiment", "Entitäten", "Trends"],
-                key="ai_analysis_type"
-            )
-            
-            analyze_button = st.button("▶️ Mit KI analysieren", key="analyze_with_ai")
-        
-        with col2:
-            if analyze_button:
-                article_row = df[df['id'] == article_id]
-                if not article_row.empty:
-                    with st.spinner(f"Artikel wird mit Google Gemini analysiert..."):
-                        content = get_article_content(article_id)
-                        
-                        if content:
-                            task_map = {
-                                "Zusammenfassung": "summary",
-                                "Schlüsselwörter": "keywords",
-                                "Sentiment": "sentiment",
-                                "Entitäten": "entities",
-                                "Trends": "trends"
-                            }
-                            
-                            result = analyze_with_genai(content, task_map[analysis_type])
-                            
-                            # Ergebnis anzeigen
-                            st.write(f"### {article_row['title'].iloc[0]}")
-                            st.write(f"**Analyse: {analysis_type}**")
-                            
-                            # Anzeige formatieren
-                            st.markdown(result)
-                        else:
-                            st.error("Der Artikelinhalt konnte nicht geladen werden.")
-                else:
-                    st.error("Artikel konnte nicht gefunden werden.")
-    
-    # 5. Trend-Prognose Tab
-    with tab5:
-        st.subheader("🔮 Trend-Prognose")
-        st.write("Identifiziert aufkommende Trends basierend auf Publikationsaktivitäten und Themenanalyse.")
-        
-        col1, col2 = st.columns([1, 2])
-        
-        with col1:
-            # Filteroptionen
-            timeframe = st.selectbox(
-                "Analysezeitraum", 
-                ["Letzte 3 Monate", "Letzter Monat", "Letzte Woche"],
-                key="trend_timeframe"
-            )
-            
-            trend_button = st.button("▶️ Trends analysieren", key="analyze_trends")
-        
-        with col2:
-            if trend_button:
-                with st.spinner("Analysiere Trends..."):
-                    # Zeitfilter anwenden
-                    filtered_df = df.copy()
-                    now = datetime.now()
-                    
-                    if timeframe == "Letzte 3 Monate":
-                        filtered_df = filtered_df[filtered_df['date'] >= (now - timedelta(days=90))]
-                    elif timeframe == "Letzter Monat":
-                        filtered_df = filtered_df[filtered_df['date'] >= (now - timedelta(days=30))]
-                    elif timeframe == "Letzte Woche":
-                        filtered_df = filtered_df[filtered_df['date'] >= (now - timedelta(days=7))]
-                    
-                    # Keywords analysieren
-                    keywords_list = []
-                    for keywords_str in filtered_df['keywords'].dropna():
-                        if keywords_str not in [None, 'N/A', '']:
-                            keywords = [k.strip() for k in str(keywords_str).split(',')]
-                            keywords_list.extend(keywords)
-                    
-                    # Keyword-Trends über Zeit
-                    keyword_counts = Counter(keywords_list)
-                    top_keywords = {k: v for k, v in sorted(keyword_counts.items(), key=lambda x: x[1], reverse=True)[:15]}
-                    
-                    # Visualisierung
-                    st.write("### Top Keywords im gewählten Zeitraum")
-                    fig = px.bar(
-                        x=list(top_keywords.keys()),
-                        y=list(top_keywords.values()),
-                        labels={'x': 'Keyword', 'y': 'Anzahl'},
-                        title='Häufige Keywords als Trend-Indikatoren'
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Trend-Analyse mit Wachstumsraten
-                    st.write("### Trend-Wachstumsanalyse")
-                    
-                    # Teile den Zeitraum in zwei Hälften
-                    filtered_df['date_ts'] = filtered_df['date']
-                    mid_point = filtered_df['date_ts'].min() + (filtered_df['date_ts'].max() - filtered_df['date_ts'].min()) / 2
-                    
-                    early_df = filtered_df[filtered_df['date_ts'] < mid_point]
-                    late_df = filtered_df[filtered_df['date_ts'] >= mid_point]
-                    
-                    # Keywords in beiden Zeiträumen zählen
-                    early_keywords = []
-                    for keywords_str in early_df['keywords'].dropna():
-                        if keywords_str not in [None, 'N/A', '']:
-                            keywords = [k.strip() for k in str(keywords_str).split(',')]
-                            early_keywords.extend(keywords)
-                    
-                    late_keywords = []
-                    for keywords_str in late_df['keywords'].dropna():
-                        if keywords_str not in [None, 'N/A', '']:
-                            keywords = [k.strip() for k in str(keywords_str).split(',')]
-                            late_keywords.extend(keywords)
-                    
-                    early_counts = Counter(early_keywords)
-                    late_counts = Counter(late_keywords)
-                    
-                    # Wachstumsraten berechnen
-                    growth_rates = {}
-                    for kw in set(early_keywords + late_keywords):
-                        early_count = early_counts.get(kw, 0) + 1  # +1 zur Vermeidung von Division durch Null
-                        late_count = late_counts.get(kw, 0) + 1
-                        growth = (late_count / early_count) - 1  # -1 für prozentuale Veränderung
-                        
-                        # Nur relevante Keywords mit Mindesthäufigkeit
-                        if late_count > 2 and (early_count + late_count) > 5:
-                            growth_rates[kw] = growth
-                    
-                    # Top wachsende Keywords
-                    top_growing = {k: v for k, v in sorted(growth_rates.items(), key=lambda x: x[1], reverse=True)[:10]}
-                    
-                    # Visualisierung
-                    if top_growing:
-                        growth_df = pd.DataFrame({
-                            'Keyword': list(top_growing.keys()),
-                            'Wachstum': list(top_growing.values())
-                        })
-                        
-                        fig = px.bar(
-                            growth_df,
-                            x='Keyword',
-                            y='Wachstum',
-                            labels={'Wachstum': 'Wachstumsrate'},
-                            title='Am schnellsten wachsende Keywords (Trend-Kandidaten)',
-                            color='Wachstum',
-                            color_continuous_scale='Viridis'
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                        # Zusätzliche Insights
-                        st.write("### Trend-Insights")
-                        st.write("Die folgenden Keywords zeigen das stärkste Wachstum und könnten auf aufkommende Trends hindeuten:")
-                        
-                        for kw, growth in top_growing.items():
-                            st.write(f"- **{kw}**: {growth*100:.1f}% Wachstum")
-                    else:
-                        st.warning("Nicht genügend Daten für eine Trend-Analyse verfügbar.")
-
 def show_author_network(df: pd.DataFrame):
     """Zeigt das Autoren-Netzwerk"""
     st.header("🕸️ Autoren-Netzwerk")
     
     with st.spinner("Netzwerk wird generiert..."):
-        G, pos = create_author_network()
+        G, pos = create_author_network(df)
     
     if G is None or len(G.nodes()) == 0:
         st.warning("Keine Netzwerkdaten verfügbar.")
@@ -2977,7 +2638,7 @@ def show_author_network(df: pd.DataFrame):
         
         if top_authors:
             df_top = pd.DataFrame(top_authors, columns=['Autor', 'Verbindungen'])
-            st.dataframe(df_top, use_container_width=True)
+            st.dataframe(df_top, width="stretch")
     
     with col2:
         st.subheader("📊 Netzwerk-Metriken")
@@ -3267,7 +2928,7 @@ def show_analytics(df: pd.DataFrame):
                     # Top-Anomalien anzeigen
                     st.write("**Top Anomalien:**")
                     anomaly_display = outliers[['title', 'word_count', 'author', 'category']].sort_values('word_count', ascending=False).head(5)
-                    st.dataframe(anomaly_display, use_container_width=True)
+                    st.dataframe(anomaly_display, width="stretch")
         
         with col2:
             # Ungewöhnliche Veröffentlichungsmuster
@@ -3313,7 +2974,7 @@ def show_analytics(df: pd.DataFrame):
                             'Datum': anomalous_days.index,
                             'Anzahl Artikel': anomalous_days.values
                         })
-                        st.dataframe(anomaly_days_df, use_container_width=True)
+                        st.dataframe(anomaly_days_df, width="stretch")
 
 def show_sql_queries():
     """Zeigt SQL-Abfragen Interface"""
@@ -3361,7 +3022,7 @@ def show_sql_queries():
                     
                     # Ergebnisse anzeigen
                     if not result_df.empty:
-                        st.dataframe(result_df, use_container_width=True)
+                        st.dataframe(result_df, width="stretch")
                         
                         # Download-Button
                         csv = result_df.to_csv(index=False)
@@ -3411,378 +3072,6 @@ def show_sql_queries():
                 
         except Exception as e:
             st.error(f"Fehler beim Export: {e}")
-
-def show_ai_analytics(df: pd.DataFrame):
-    """Zeigt KI-basierte Analysen und Insights"""
-    st.header("🤖 KI-Analysen")
-    
-    st.markdown("""
-    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-        <h4 style="margin-top: 0;">🧠 KI-gestützte Artikelanalyse</h4>
-        <p>Erhalte tiefere Einblicke in die Artikeldaten durch fortschrittliche KI-Analysen.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # KI-Analyse-Optionen
-    ai_analysis_type = st.selectbox(
-        "Analyse-Typ auswählen",
-        ["📊 Themen-Clustering", "🔍 Sentiment-Analyse", "📈 Trend-Vorhersage", "💡 Content-Empfehlungen", "🔄 Ähnliche Artikel finden"]
-    )
-    
-    if "api_key_loaded" not in st.session_state:
-        st.session_state.api_key_loaded = False
-        st.session_state.api_key = None
-        
-        # API-Key aus .env-Datei laden
-        try:
-            from dotenv import load_dotenv
-            load_dotenv()
-            api_key = os.getenv("GOOGLE_AI_API_KEY")
-            
-            if api_key:
-                st.session_state.api_key = api_key
-                st.session_state.api_key_loaded = True
-            else:
-                st.warning("Kein Google AI API-Key in der .env-Datei gefunden. Bitte fügen Sie GOOGLE_AI_API_KEY=IhrAPIKey hinzu.")
-        except Exception as e:
-            st.error(f"Fehler beim Laden des API-Keys: {e}")
-    
-    # Implementierung der verschiedenen KI-Analysen
-    if ai_analysis_type == "📊 Themen-Clustering":
-        show_topic_clustering(df)
-    elif ai_analysis_type == "🔍 Sentiment-Analyse":
-        show_sentiment_analysis(df)
-    elif ai_analysis_type == "📈 Trend-Vorhersage":
-        show_trend_prediction(df)
-    elif ai_analysis_type == "💡 Content-Empfehlungen":
-        show_content_recommendations(df)
-    elif ai_analysis_type == "🔄 Ähnliche Artikel finden":
-        show_similar_articles_finder(df)
-
-def show_topic_clustering(df: pd.DataFrame):
-    """Zeigt Themen-Clustering basierend auf Artikelinhalten"""
-    st.subheader("📊 Themen-Clustering")
-    
-    # Erklärung
-    st.markdown("""
-    Diese Funktion gruppiert Artikel in thematische Cluster basierend auf Titel, Inhalt und Keywords.
-    So können Sie Themenschwerpunkte und Zusammenhänge in der Berichterstattung erkennen.
-    """)
-    
-    # Beispiel-Visualisierung
-    st.info("Für eine vollständige Implementierung wird ein Google AI API-Key benötigt.")
-    
-    # Platzhalter für Clustering-Ergebnisse
-    cluster_data = {
-        "Technologie & Innovation": 35,
-        "Politik & Gesellschaft": 28,
-        "Cybersicherheit": 23,
-        "Künstliche Intelligenz": 18,
-        "Digitale Wirtschaft": 15,
-        "Mobilität": 12,
-        "Klimawandel & Umwelt": 10
-    }
-    
-    # Visualisierung
-    fig = px.pie(
-        values=list(cluster_data.values()),
-        names=list(cluster_data.keys()),
-        title="Thematische Verteilung der Artikel",
-        hole=0.4
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Beispiel-Artikel pro Cluster
-    st.subheader("Beispielartikel pro Cluster")
-    for cluster in list(cluster_data.keys())[:3]:
-        with st.expander(f"{cluster} ({cluster_data[cluster]} Artikel)"):
-            # Hier würden normalerweise echte geclusterte Artikel angezeigt
-            sample_df = df.sample(min(3, len(df)))
-            for _, article in sample_df.iterrows():
-                st.markdown(f"""
-                - [{article['title']}]({article['url']}) - {article['date'].strftime('%Y-%m-%d') if pd.notna(article['date']) else 'N/A'}
-                """)
-
-def show_sentiment_analysis(df: pd.DataFrame):
-    """Zeigt Sentiment-Analyse der Artikel"""
-    st.subheader("🔍 Sentiment-Analyse")
-    
-    st.markdown("""
-    Diese Funktion analysiert die Stimmung in den Artikeln und zeigt positive, negative und neutrale Tendenzen.
-    """)
-    
-    # Platzhalter-Daten für Sentiment-Analyse
-    sentiment_data = {
-        "Positiv": 32,
-        "Neutral": 55,
-        "Negativ": 13
-    }
-    
-    # Visualisierung
-    col1, col2 = st.columns([3, 2])
-    
-    with col1:
-        # Sentiment-Verteilung
-        colors = {"Positiv": "#4CAF50", "Neutral": "#2196F3", "Negativ": "#F44336"}
-        fig = px.bar(
-            x=list(sentiment_data.keys()),
-            y=list(sentiment_data.values()),
-            title="Sentiment-Verteilung",
-            labels={"x": "Sentiment", "y": "Anzahl Artikel"},
-            color=list(sentiment_data.keys()),
-            color_discrete_map=colors
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    
-    with col2:
-        # Sentiment-Übersicht
-        st.markdown("### Sentiment-Übersicht")
-        
-        total = sum(sentiment_data.values())
-        st.metric("Positiv", f"{sentiment_data['Positiv']} ({sentiment_data['Positiv']/total*100:.1f}%)")
-        st.metric("Neutral", f"{sentiment_data['Neutral']} ({sentiment_data['Neutral']/total*100:.1f}%)")
-        st.metric("Negativ", f"{sentiment_data['Negativ']} ({sentiment_data['Negativ']/total*100:.1f}%)")
-    
-    # Beispiel-Artikel nach Sentiment
-    st.subheader("Beispiel-Artikel nach Sentiment")
-    
-    tabs = st.tabs(["Positiv", "Neutral", "Negativ"])
-    
-    for i, tab in enumerate(tabs):
-        with tab:
-            # Hier würden normalerweise echte kategorisierte Artikel angezeigt
-            sample_df = df.sample(min(3, len(df)))
-            for _, article in sample_df.iterrows():
-                st.markdown(f"""
-                - **[{article['title']}]({article['url']})** - {article['date'].strftime('%Y-%m-%d') if pd.notna(article['date']) else 'N/A'}
-                """)
-
-def show_trend_prediction(df: pd.DataFrame):
-    """Zeigt Trend-Vorhersagen basierend auf historischen Daten"""
-    st.subheader("📈 Trend-Vorhersage")
-    
-    st.markdown("""
-    Diese Funktion analysiert historische Daten und sagt zukünftige Trends vorher.
-    """)
-    
-    # Beispiel-Trend-Daten
-    dates = pd.date_range(end=datetime.now(), periods=30).tolist()
-    actual_values = [random.randint(5, 15) for _ in range(30)]
-    
-    # Vorhersagedaten (7 Tage)
-    future_dates = pd.date_range(start=dates[-1] + timedelta(days=1), periods=7).tolist()
-    predicted_values = [actual_values[-1] + random.randint(-2, 5) for _ in range(7)]
-    predicted_values = [max(5, min(20, v)) for v in predicted_values]  # Werte begrenzen
-    
-    # Kombinierte Daten
-    all_dates = dates + future_dates
-    all_values = actual_values + [None] * 7
-    all_predicted = [None] * 30 + predicted_values
-    
-    # Daten für das Diagramm
-    trend_df = pd.DataFrame({
-        "Datum": all_dates,
-        "Tatsächlich": all_values,
-        "Vorhersage": all_predicted
-    })
-    
-    # Trend-Visualisierung
-    fig = go.Figure()
-    
-    fig.add_trace(go.Scatter(
-        x=trend_df["Datum"],
-        y=trend_df["Tatsächlich"],
-        name="Tatsächlich",
-        line=dict(color="#2196F3", width=3)
-    ))
-    
-    fig.add_trace(go.Scatter(
-        x=trend_df["Datum"],
-        y=trend_df["Vorhersage"],
-        name="Vorhersage",
-        line=dict(color="#F44336", width=3, dash="dot")
-    ))
-    
-    fig.update_layout(
-        title="Artikel pro Tag: Trend und Vorhersage",
-        xaxis_title="Datum",
-        yaxis_title="Artikelanzahl",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Trendvorhersagen
-    st.subheader("Vorhersage für die nächsten 7 Tage")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.metric("Durchschnitt", f"{np.mean(predicted_values):.1f} Artikel/Tag")
-        st.metric("Maximum", f"{max(predicted_values)} Artikel")
-    
-    with col2:
-        st.metric("Trend", f"{'+' if predicted_values[-1] > actual_values[-1] else ''}{predicted_values[-1] - actual_values[-1]} Artikel", 
-                 delta=f"{(predicted_values[-1] - actual_values[-1]) / actual_values[-1] * 100:.1f}%")
-        st.metric("Minimum", f"{min(predicted_values)} Artikel")
-
-def show_content_recommendations(df: pd.DataFrame):
-    """Zeigt Inhaltliche Empfehlungen basierend auf Artikeldaten"""
-    st.subheader("💡 Content-Empfehlungen")
-    
-    st.markdown("""
-    Diese Funktion analysiert Ihr Publikum und die Artikelperformance, um Empfehlungen für zukünftige Inhalte zu geben.
-    """)
-    
-    # Empfehlungs-Kategorien
-    recommendations = [
-        {
-            "title": "Thematische Empfehlungen",
-            "items": [
-                "KI-Ethik und gesellschaftliche Auswirkungen",
-                "Cloud-native Entwicklung und DevOps",
-                "Datenschutz und DSGVO-Compliance",
-                "Erneuerbare Energien und Technologie"
-            ]
-        },
-        {
-            "title": "Zeitliche Empfehlungen",
-            "items": [
-                "Artikel am Dienstag und Donnerstag veröffentlichen",
-                "Optimale Veröffentlichungszeit: 9:00 - 11:00 Uhr",
-                "Längere Artikel am Wochenende für mehr Engagement"
-            ]
-        },
-        {
-            "title": "Format-Empfehlungen",
-            "items": [
-                "Mehr interaktive Elemente in Tutorials",
-                "Kurze Anleitungen im 'How-to' Format",
-                "Tiefgehende Analysen zu Technologie-Trends"
-            ]
-        }
-    ]
-    
-    # Empfehlungen anzeigen
-    for rec in recommendations:
-        with st.expander(rec["title"], expanded=True):
-            for item in rec["items"]:
-                st.markdown(f"• {item}")
-    
-    # Keyword-Empfehlungen
-    st.subheader("Empfohlene Keywords")
-    
-    keyword_scores = {
-        "Künstliche Intelligenz": 87,
-        "Cloud Computing": 82,
-        "Cybersicherheit": 79,
-        "Quantencomputing": 76,
-        "Edge Computing": 74,
-        "Blockchain": 71,
-        "Data Science": 69,
-        "IoT": 67,
-        "Green IT": 65,
-        "Mikrochips": 62
-    }
-    
-    # Balkendiagramm für Keyword-Empfehlungen
-    fig = px.bar(
-        x=list(keyword_scores.values()),
-        y=list(keyword_scores.keys()),
-        orientation='h',
-        title="Empfohlene Keywords nach Relevanz-Score",
-        labels={"x": "Relevanz-Score", "y": ""},
-        color=list(keyword_scores.values()),
-        color_continuous_scale="Viridis"
-    )
-    fig.update_layout(yaxis={'categoryorder':'total ascending'})
-    
-    st.plotly_chart(fig, use_container_width=True)
-
-def show_similar_articles_finder(df: pd.DataFrame):
-    """Zeigt einen Ähnliche-Artikel-Finder"""
-    st.subheader("🔄 Ähnliche Artikel finden")
-    
-    st.markdown("""
-    Mit dieser Funktion können Sie Artikel finden, die einem ausgewählten Artikel inhaltlich oder thematisch ähnlich sind.
-    """)
-    
-    # Artikel-Auswahl
-    article_titles = df['title'].tolist()
-    selected_title = st.selectbox("Artikel auswählen", article_titles)
-    
-    if selected_title:
-        selected_article = df[df['title'] == selected_title].iloc[0]
-        
-        # Ausgewählten Artikel anzeigen
-        st.markdown(f"""
-        ### Ausgewählter Artikel
-        **Titel:** [{selected_article['title']}]({selected_article['url']})  
-        **Datum:** {selected_article['date'].strftime('%Y-%m-%d') if pd.notna(selected_article['date']) else 'N/A'}  
-        **Autor:** {selected_article['author'] if pd.notna(selected_article['author']) else 'N/A'}  
-        **Kategorie:** {selected_article['category'] if pd.notna(selected_article['category']) else 'N/A'}  
-        """)
-        
-        # Ähnlichkeitskriterien
-        st.markdown("### Ähnlichkeitskriterien")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            by_content = st.checkbox("Nach Inhalt", value=True)
-        
-        with col2:
-            by_author = st.checkbox("Nach Autor")
-        
-        with col3:
-            by_category = st.checkbox("Nach Kategorie")
-        
-        if st.button("Ähnliche Artikel finden"):
-            with st.spinner("Suche ähnliche Artikel..."):
-                # Hier würden wir normalerweise einen Algorithmus zur Ähnlichkeitsbestimmung verwenden
-                # Für die Demo verwenden wir zufällige Artikel als "ähnliche" Artikel
-                
-                filtered_df = df.copy()
-                
-                # Filter anwenden (in einer echten Implementierung würden wir Ähnlichkeitsmetriken berechnen)
-                if by_author:
-                    filtered_df = filtered_df[filtered_df['author'] == selected_article['author']]
-                
-                if by_category:
-                    filtered_df = filtered_df[filtered_df['category'] == selected_article['category']]
-                
-                # Ausgewählten Artikel entfernen
-                filtered_df = filtered_df[filtered_df['title'] != selected_title]
-                
-                # Ähnliche Artikel (zufällig ausgewählt für die Demo)
-                similar_articles = filtered_df.sample(min(5, len(filtered_df)))
-                
-                if not similar_articles.empty:
-                    st.markdown("### Ähnliche Artikel")
-                    
-                    for i, (_, article) in enumerate(similar_articles.iterrows()):
-                        similarity = random.randint(60, 95)  # Zufälliger Ähnlichkeitswert für die Demo
-                        
-                        st.markdown(f"""
-                        <div style="border-left: 4px solid {'#4CAF50' if similarity > 85 else '#2196F3' if similarity > 70 else '#FFC107'}; padding-left: 10px; margin-bottom: 15px;">
-                            <h4 style="margin: 0;">{article['title']}</h4>
-                            <p style="margin: 5px 0; color: #555;">
-                                <span style="margin-right: 15px;">Datum: {article['date'].strftime('%Y-%m-%d') if pd.notna(article['date']) else 'N/A'}</span>
-                                <span style="margin-right: 15px;">Autor: {article['author'] if pd.notna(article['author']) else 'N/A'}</span>
-                                <span>Kategorie: {article['category'] if pd.notna(article['category']) else 'N/A'}</span>
-                            </p>
-                            <p style="margin: 5px 0;">
-                                <span style="background-color: {'#E8F5E9' if similarity > 85 else '#E3F2FD' if similarity > 70 else '#FFF8E1'}; padding: 2px 8px; border-radius: 10px; font-size: 0.9em;">
-                                    {similarity}% Ähnlichkeit
-                                </span>
-                                <a href="{article['url']}" target="_blank" style="margin-left: 10px;">Artikel öffnen</a>
-                            </p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    st.info("Keine ähnlichen Artikel gefunden. Versuchen Sie es mit anderen Kriterien.")
-    else:
-        st.info("Bitte wählen Sie einen Artikel aus, um ähnliche Artikel zu finden.")
 
 def show_advanced_reports(df: pd.DataFrame):
     """Zeigt erweiterte Reports und Analysen"""
@@ -3908,7 +3197,7 @@ def show_detailed_overview(df: pd.DataFrame):
     display_columns = ['title', 'author', 'category', 'date', 'word_count']
     st.dataframe(
         filtered_df[display_columns].head(100),
-        use_container_width=True,
+        width="stretch",
         hide_index=True
     )
 
@@ -4051,7 +3340,7 @@ def show_author_performance(df: pd.DataFrame):
         })
     
     perf_df = pd.DataFrame(performance_data)
-    st.dataframe(perf_df, use_container_width=True, hide_index=True)
+    st.dataframe(perf_df, width="stretch", hide_index=True)
     
     # Visualisierungen
     col1, col2 = st.columns(2)
@@ -4119,7 +3408,7 @@ def show_category_insights(df: pd.DataFrame):
     category_stats.columns = ['Artikel', 'Ø Wörter', 'Gesamtwörter', 'Wörter Std', 'Erstes Datum', 'Letztes Datum', 'Autoren']
     category_stats = category_stats.sort_values('Artikel', ascending=False)
     
-    st.dataframe(category_stats, use_container_width=True)
+    st.dataframe(category_stats, width="stretch")
     
     # Visualisierungen
     col1, col2 = st.columns(2)
@@ -4186,7 +3475,7 @@ def show_timeseries_report(df: pd.DataFrame):
         time_series.columns = ['Datum', 'Artikel', 'Ø Wörter', 'Autoren']
     
     # Zeitreihen-Tabelle
-    st.dataframe(time_series, use_container_width=True, hide_index=True)
+    st.dataframe(time_series, width="stretch", hide_index=True)
     
     # Visualisierungen
     col1, col2 = st.columns(2)
@@ -4877,7 +4166,7 @@ if __name__ == "__main__":
         st.sidebar.title("Navigation")
         page = st.sidebar.selectbox(
             "Select Page",
-            ["📊 Dashboard", "📈 Time Analysis", "🔑 Keywords", "🔍 Search", "🕸️ Network", "🤖 AI Analysis"]
+            ["📊 Dashboard", "📈 Time Analysis", "🔑 Keywords", "🔍 Search", "🕸️ Network"]
         )
         
         # Load data with progress indicator
@@ -4943,7 +4232,5 @@ if __name__ == "__main__":
             show_article_search(df)
         elif page == "🕸️ Network":
             show_author_network(df)
-        elif page == "🤖 AI Analysis":
-            show_ai_analytics(df)
     
     main()

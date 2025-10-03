@@ -99,8 +99,8 @@ The sidebar now has 6 main pages:
 2. **📈 Time Analysis** - Temporal trends and patterns
 3. **🔑 Keywords** - Keyword frequency and analysis
 4. **🔍 Search** - Search and filter articles
-5. **🕸️ Network** - Author collaboration network
-6. **🤖 AI Analysis** - AI-powered content analysis
+5. **🕸️ Author Network** - Visual relationship graphs
+6. **🔧 SQL Queries** - Custom database queries
 
 Key metrics (total articles, authors, categories, database status) are now displayed in the main content area instead of cluttering the sidebar.
 
