@@ -109,16 +109,20 @@ def init_chip_table(conn):
                 CREATE TABLE IF NOT EXISTS chip (
                     id SERIAL PRIMARY KEY,
                     url TEXT UNIQUE,
-                    title TEXT,
-                    author TEXT,
-                    date TEXT,
-                    keywords TEXT,
+                    headline TEXT,
                     description TEXT,
-                    type TEXT,
+                    author TEXT,
+                    date_published TEXT,
+                    date_modified TEXT,
+                    article_type TEXT,
+                    image_url TEXT,
+                    image_caption TEXT,
+                    video_url TEXT,
+                    video_duration TEXT,
+                    category TEXT,
                     page_level1 TEXT,
                     page_level2 TEXT,
-                    page_level3 TEXT,
-                    page_template TEXT
+                    page_level3 TEXT
                 )
             """)
             conn.commit()
@@ -135,16 +139,20 @@ def init_chip_table(conn):
             # Add missing columns if needed
             required_columns = {
                 'url': 'TEXT UNIQUE',
-                'title': 'TEXT',
-                'author': 'TEXT',
-                'date': 'TEXT',
-                'keywords': 'TEXT',
+                'headline': 'TEXT',
                 'description': 'TEXT',
-                'type': 'TEXT',
+                'author': 'TEXT',
+                'date_published': 'TEXT',
+                'date_modified': 'TEXT',
+                'article_type': 'TEXT',
+                'image_url': 'TEXT',
+                'image_caption': 'TEXT',
+                'video_url': 'TEXT',
+                'video_duration': 'TEXT',
+                'category': 'TEXT',
                 'page_level1': 'TEXT',
                 'page_level2': 'TEXT',
-                'page_level3': 'TEXT',
-                'page_template': 'TEXT'
+                'page_level3': 'TEXT'
             }
             
             for col_name, col_type in required_columns.items():
@@ -175,15 +183,44 @@ def init_crawl_state_tables(conn):
                 )
             """)
             
-            # Chip crawl state
+            # Chip crawl state - check if table exists and has old schema
+            cur.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'chip_crawl_state'
+            """)
+            existing_columns = {row[0] for row in cur.fetchall()}
+            
+            # If table exists with old schema (sitemap_index), migrate it
+            if existing_columns and 'sitemap_index' in existing_columns and 'page' not in existing_columns:
+                print_status("Migrating chip_crawl_state table to new schema...", "INFO")
+                cur.execute("ALTER TABLE chip_crawl_state RENAME COLUMN sitemap_index TO page")
+                conn.commit()
+                print_status("Successfully renamed sitemap_index to page", "SUCCESS")
+            
+            # Create table if it doesn't exist
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS chip_crawl_state (
                     id SERIAL PRIMARY KEY,
-                    sitemap_index INTEGER,
-                    article_index INTEGER,
+                    page INTEGER DEFAULT 1,
+                    article_index INTEGER DEFAULT 0,
                     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            
+            # Ensure all required columns exist
+            if existing_columns:
+                if 'page' not in existing_columns and 'sitemap_index' not in existing_columns:
+                    cur.execute("ALTER TABLE chip_crawl_state ADD COLUMN page INTEGER DEFAULT 1")
+                    print_status("Added 'page' column to chip_crawl_state", "INFO")
+                
+                if 'article_index' not in existing_columns:
+                    cur.execute("ALTER TABLE chip_crawl_state ADD COLUMN article_index INTEGER DEFAULT 0")
+                    print_status("Added 'article_index' column to chip_crawl_state", "INFO")
+                
+                if 'last_updated' not in existing_columns:
+                    cur.execute("ALTER TABLE chip_crawl_state ADD COLUMN last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+                    print_status("Added 'last_updated' column to chip_crawl_state", "INFO")
             
             conn.commit()
             print_status("Crawl state tables initialized successfully", "SUCCESS")

@@ -126,7 +126,8 @@ streamlit run streamlit_app.py
 - [ ] 🔑 Keywords
 - [ ] 🔍 Search
 - [ ] 🕸️ Network
-- [ ] 🤖 AI Analysis
+- [ ] 📈 Analytics
+- [ ] 🔧 SQL Queries
 
 ---
 
