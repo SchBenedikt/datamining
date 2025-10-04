@@ -1,13 +1,13 @@
 
-# 🏗️ System-Architektur
+# 🏗️ System Architecture
 
-## Übersicht
+## Overview
 
-Das Unified News Mining System ist ein vollständig integriertes Crawler-System mit separaten Datenbanktabellen, einem einheitlichen Dashboard und zentraler Verwaltung über Docker.
+The Unified News Mining System is a fully integrated crawler system with separate database tables, a unified dashboard, and centralized management via Docker.
 
 ---
 
-## 📐 Architektur-Diagramm
+## 📐 Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -18,14 +18,14 @@ Das Unified News Mining System ist ein vollständig integriertes Crawler-System 
 │   Heise Crawlers     │              │   Chip Crawlers      │
 ├──────────────────────┤              ├──────────────────────┤
 │ Archive Crawler      │              │ Archive Crawler      │
-│ (rückwärts)          │              │ (vorwärts)           │
-│ - Start: 2025/10     │              │ - Start: Seite 1     │
-│ - Ziel: 2000/01      │              │ - Ziel: Letzte Seite │
+│ (backwards)          │              │ (forwards)           │
+│ - Start: 2025/10     │              │ - Start: Page 1      │
+│ - Target: 2000/01    │              │ - Target: Last Page  │
 │                      │              │                      │
 │ Live Crawler         │              │ Live Crawler         │
-│ (alle 5 Minuten)     │              │ (alle 10 Minuten)    │
-│ - Prüft: Aktuellen   │              │ - Prüft: Seite 1     │
-│   Monat              │              │   (neueste)          │
+│ (every 5 minutes)    │              │ (every 10 minutes)   │
+│ - Checks: Current    │              │ - Checks: Page 1     │
+│   Month              │              │   (newest)           │
 └──────────┬───────────┘              └──────────┬───────────┘
            │                                     │
            │ INSERT INTO heise                   │ INSERT INTO chip
@@ -55,29 +55,27 @@ Das Unified News Mining System ist ein vollständig integriertes Crawler-System 
          ┌───────────────┼───────────────┐
          │               │               │
          ▼               ▼               ▼
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+         ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
 │ Streamlit   │  │ Discord Bot │  │ Export      │
 │ Dashboard   │  │             │  │ Tools       │
 ├─────────────┤  ├─────────────┤  ├─────────────┤
 │ • Merge     │  │ • Heise     │  │ heise/      │
-│   beide     │  │   stats     │  │ export_     │
-│   Tabellen  │  │             │  │ articles.py │
+│   both      │  │   stats     │  │ export_     │
+│   tables    │  │             │  │ articles.py │
 │             │  │ • Chip      │  │             │
 │ • Filter:   │  │   stats     │  │ chip/       │
-│   - Quelle  │  │             │  │ export_     │
-│   - Datum   │  │ • Heute     │  │ articles.py │
-│   - Autor   │  │   & Total   │  │             │
-│   - Kat.    │  │             │  │ Formate:    │
+│   - Source  │  │             │  │ export_     │
+│   - Date    │  │ • Today     │  │ articles.py │
+│   - Author  │  │   & Total   │  │             │
+│   - Cat.    │  │             │  │ Formats:    │
 │             │  │ • Updates   │  │ • CSV       │
-│ • 20+       │  │   alle 10   │  │ • XLSX      │
-│   Viz.      │  │   Minuten   │  │ • JSON      │
+│ • 20+       │  │   every 10  │  │ • XLSX      │
+│   Viz.      │  │   minutes   │  │ • JSON      │
 │             │  │             │  │ • SQL       │
 │ • Export    │  │             │  │             │
 │ • AI        │  │             │  │             │
 │   Analytics │  │             │  │             │
-└─────────────┘  └─────────────┘  └─────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
+└─────────────┘  └─────────────┘  └─────────────┘┌─────────────────────────────────────────────────────────────────┐
 │                     DOCKER COMPOSE STACK                         │
 ├─────────────────────────────────────────────────────────────────┤
 │  heise-archive-crawler   │  heise-live-crawler                  │
@@ -97,86 +95,86 @@ Das Unified News Mining System ist ein vollständig integriertes Crawler-System 
 
 ---
 
-## 🔄 Datenfluss
+## 🔄 Data Flow
 
-### 1. Crawling-Phase
+### 1. Crawling Phase
 
 ```
 Heise Archive Crawler:
   https://www.heise.de/newsticker/archiv/2025/10
-  └─> Extrahiert Artikel-Metadaten
-      └─> Speichert in heise-Tabelle
-          └─> Geht zu 2025/09, 2025/08, ...
+  └─> Extracts article metadata
+      └─> Saves to heise table
+          └─> Goes to 2025/09, 2025/08, ...
 
 Heise Live Crawler:
-  Jede 5 Minuten:
-  └─> Prüft aktuellen Monat
-      └─> Findet neue Artikel
-          └─> Speichert nur Neue (Duplikate-Check via URL)
+  Every 5 minutes:
+  └─> Checks current month
+      └─> Finds new articles
+          └─> Saves only new ones (duplicate check via URL)
 
 Chip Archive Crawler:
   https://www.chip.de/news/?p=1
-  └─> Extrahiert Artikel-Metadaten
-      └─> Speichert in chip-Tabelle
-          └─> Geht zu Seite 2, 3, 4, ...
+  └─> Extracts article metadata
+      └─> Saves to chip table
+          └─> Goes to page 2, 3, 4, ...
 
 Chip Live Crawler:
-  Jede 10 Minuten:
-  └─> Prüft Seite 1 (neueste Artikel)
-      └─> Findet neue Artikel
-          └─> Speichert nur Neue (Duplikate-Check via URL)
+  Every 10 minutes:
+  └─> Checks page 1 (newest articles)
+      └─> Finds new articles
+          └─> Saves only new ones (duplicate check via URL)
 ```
 
-### 2. Datenbank-Phase
+### 2. Database Phase
 
 ```
-PostgreSQL Datenbank:
-  ├─> heise-Tabelle
+PostgreSQL Database:
+  ├─> heise table
   │   ├─> id, title, url, date, author
   │   ├─> category, keywords, word_count
   │   └─> editor_abbr, site_name
   │
-  └─> chip-Tabelle
+  └─> chip table
       ├─> id, url, title, author, date
       ├─> keywords, description, type
       └─> page_level1, page_level2, page_level3, page_template
 ```
 
-### 3. Visualisierungs-Phase
+### 3. Visualization Phase
 
 ```
 Streamlit Dashboard:
   └─> SELECT * FROM heise
   └─> SELECT * FROM chip
       └─> pd.concat([df_heise, df_chip])
-          └─> Filter nach Quelle
-              └─> Visualisierungen:
-                  ├─> Autoren-Netzwerke
-                  ├─> Keyword-Analysen
-                  ├─> Zeitanalysen
-                  ├─> AI-Analysen
-                  └─> Export-Funktionen
+          └─> Filter by source
+              └─> Visualizations:
+                  ├─> Author networks
+                  ├─> Keyword analyses
+                  ├─> Time analyses
+                  ├─> AI analyses
+                  └─> Export functions
 ```
 
-### 4. Benachrichtigungs-Phase
+### 4. Notification Phase
 
 ```
 Discord Bot:
-  └─> Jede 10 Minuten:
+  └─> Every 10 minutes:
       ├─> SELECT COUNT(*) FROM heise
       ├─> SELECT COUNT(*) FROM chip
-      └─> Postet Statistiken im Discord-Channel
+      └─> Posts statistics in Discord channel
 
-E-Mail-Benachrichtigungen:
-  └─> Bei Fehlern:
-      └─> Sendet Alert an ALERT_EMAIL
+Email Notifications:
+  └─> On errors:
+      └─> Sends alert to ALERT_EMAIL
 ```
 
 ---
 
-## 📊 Datenbankschema
+## 📊 Database Schema
 
-### Heise-Tabelle
+### Heise Table
 
 ```sql
 CREATE TABLE IF NOT EXISTS heise (
@@ -197,23 +195,23 @@ CREATE INDEX idx_heise_author ON heise(author);
 CREATE INDEX idx_heise_category ON heise(category);
 ```
 
-**Beispieldaten:**
+**Example Data:**
 ```json
 {
   "id": 1,
-  "title": "Neue KI-Technologie revolutioniert...",
+  "title": "New AI Technology revolutionizes...",
   "url": "https://www.heise.de/news/...",
   "date": "2025-10-02T10:30:00",
   "author": "Max Mustermann",
-  "category": "Künstliche Intelligenz",
-  "keywords": "KI, Machine Learning, Innovation",
+  "category": "Artificial Intelligence",
+  "keywords": "AI, Machine Learning, Innovation",
   "word_count": 450,
   "editor_abbr": "mm",
   "site_name": "heise online"
 }
 ```
 
-### Chip-Tabelle
+### Chip Table
 
 ```sql
 CREATE TABLE IF NOT EXISTS chip (
@@ -236,19 +234,19 @@ CREATE INDEX idx_chip_author ON chip(author);
 CREATE INDEX idx_chip_type ON chip(type);
 ```
 
-**Beispieldaten:**
+**Example Data:**
 ```json
 {
   "id": 1,
   "url": "https://www.chip.de/news/...",
-  "title": "Smartphone-Test 2025: Die besten...",
-  "author": "CHIP Redaktion",
+  "title": "Smartphone Test 2025: The best...",
+  "author": "CHIP Editorial Team",
   "date": "2025-10-02",
-  "keywords": "Smartphone, Test, Vergleich",
-  "description": "Im großen Vergleichstest...",
+  "keywords": "Smartphone, Test, Comparison",
+  "description": "In the big comparison test...",
   "type": "Test",
   "page_level1": "News",
-  "page_level2": "Mobilfunk",
+  "page_level2": "Mobile",
   "page_level3": "Smartphones",
   "page_template": "article"
 }
@@ -256,99 +254,99 @@ CREATE INDEX idx_chip_type ON chip(type);
 
 ---
 
-## 🔧 Komponenten-Details
+## 🔧 Component Details
 
 ### Heise Crawler
 
-**Datei:** `heise/main.py` (Archive), `heise/current_crawler.py` (Live)
+**File:** `heise/main.py` (Archive), `heise/current_crawler.py` (Live)
 
-**Funktionsweise:**
-1. Lädt Archive-Seite: `https://www.heise.de/newsticker/archiv/YYYY/MM`
-2. Parst HTML mit BeautifulSoup
-3. Extrahiert Artikel-Links und Metadaten
-4. Prüft Duplikate via URL
-5. Speichert neue Artikel in `heise`-Tabelle
-6. Bei < 10 Artikel/Tag: E-Mail-Alert
+**Functionality:**
+1. Loads archive page: `https://www.heise.de/newsticker/archiv/YYYY/MM`
+2. Parses HTML with BeautifulSoup
+3. Extracts article links and metadata
+4. Checks for duplicates via URL
+5. Saves new articles to `heise` table
+6. If < 10 articles/day: Email alert
 
-**Besonderheiten:**
-- Rückwärts-Crawling (neueste zu älteste)
-- Live-Crawler prüft nur aktuellen Monat
-- Erkennt Editor-Kürzel (z.B. "mm", "js")
-- Erfasst Wortanzahl
+**Features:**
+- Backward crawling (newest to oldest)
+- Live crawler only checks current month
+- Recognizes editor abbreviations (e.g., "mm", "js")
+- Captures word count
 
 ### Chip Crawler
 
-**Datei:** `chip/main.py` (Archive), `chip/current_crawler.py` (Live)
+**File:** `chip/main.py` (Archive), `chip/current_crawler.py` (Live)
 
-**Funktionsweise:**
-1. Lädt News-Seite: `https://www.chip.de/news/?p=PAGE`
-2. Parst HTML mit BeautifulSoup
-3. Extrahiert Artikel-Links und Metadaten aus `<script type="application/ld+json">`
-4. Prüft Duplikate via URL
-5. Speichert neue Artikel in `chip`-Tabelle
+**Functionality:**
+1. Loads news page: `https://www.chip.de/news/?p=PAGE`
+2. Parses HTML with BeautifulSoup
+3. Extracts article links and metadata from `<script type="application/ld+json">`
+4. Checks for duplicates via URL
+5. Saves new articles to `chip` table
 
-**Besonderheiten:**
-- Vorwärts-Crawling (Seite 1 zu Seite N)
-- Live-Crawler prüft nur Seite 1
-- Extrahiert strukturierte Daten (JSON-LD)
-- Erfasst Page-Hierarchie (Level 1-3)
+**Features:**
+- Forward crawling (page 1 to page N)
+- Live crawler only checks page 1
+- Extracts structured data (JSON-LD)
+- Captures page hierarchy (Level 1-3)
 
 ### Streamlit Dashboard
 
-**Datei:** `visualization/streamlit_app.py`
+**File:** `visualization/streamlit_app.py`
 
-**Funktionsweise:**
-1. Lädt Daten aus beiden Tabellen
-2. Fügt `source`-Spalte hinzu ('heise' oder 'chip')
-3. Merged DataFrames: `pd.concat([df_heise, df_chip])`
-4. Bietet Filter-Optionen in Sidebar
-5. Generiert Visualisierungen on-the-fly
-6. Cached Daten für Performance
+**Functionality:**
+1. Loads data from both tables
+2. Adds `source` column ('heise' or 'chip')
+3. Merges DataFrames: `pd.concat([df_heise, df_chip])`
+4. Provides filter options in sidebar
+5. Generates visualizations on-the-fly
+6. Caches data for performance
 
 **Features:**
-- **Übersicht:** KPIs, Statistiken, Trends
-- **Zeitanalysen:** Artikel pro Tag/Woche/Monat
-- **Autoren-Netzwerke:** NetworkX + Plotly
-- **Keyword-Analysen:** Top Keywords, Trends
-- **Word Clouds:** Häufigste Begriffe
-- **AI-Analysen:** Topic Modeling, Sentiment
-- **Suchfunktion:** Volltext-Suche
+- **Overview:** KPIs, Statistics, Trends
+- **Time Analysis:** Articles per day/week/month
+- **Author Networks:** NetworkX + Plotly
+- **Keyword Analysis:** Top Keywords, Trends
+- **Word Clouds:** Most frequent terms
+- **AI Analysis:** Topic Modeling, Sentiment
+- **Search Function:** Full-text search
 - **Export:** CSV, Excel, JSON, SQL
 
 ### Discord Bot
 
-**Datei:** `heise/bot.py`
+**File:** `heise/bot.py`
 
-**Funktionsweise:**
-1. Verbindet zu Discord
-2. Jede 10 Minuten:
-   - Zählt Artikel in beiden Tabellen
-   - Zählt heutige Artikel
-   - Zählt Autoren
-3. Postet Embed-Message mit Statistiken
+**Functionality:**
+1. Connects to Discord
+2. Every 10 minutes:
+   - Counts articles in both tables
+   - Counts today's articles
+   - Counts authors
+3. Posts embed message with statistics
 
-**Ausgabe:**
+**Output:**
 ```
-📊 News Mining Statistik
+📊 News Mining Statistics
 
-📰 Artikel heute: 45 (Heise: 25, Chip: 20)
-📚 Artikel gesamt: 12.345 (Heise: 8.000, Chip: 4.345)
-✍️ Autoren gesamt: 234
+📰 Articles today: 45 (Heise: 25, Chip: 20)
+📚 Articles total: 12,345 (Heise: 8,000, Chip: 4,345)
+✍️ Authors total: 234
 
-Stand: 02.10.2025 10:30
+As of: 10/02/2025 10:30
 ```
 
-### Export-Tools
+### Export Tools
 
-**Dateien:** `heise/export_articles.py`, `chip/export_articles.py`
+**Files:** `heise/export_articles.py`, `chip/export_articles.py`
 
-**Funktionsweise:**
-1. Verbindet zur Datenbank
-2. Liest alle Artikel der jeweiligen Tabelle
-3. Konvertiert zu gewünschtem Format
-4. Speichert in `data/`-Verzeichnis
+**Functionality:**
+1. Connects to database
+2. Reads all articles from respective table
+3. Converts to desired format
+4. Saves to `data/` directory
 
-**Formate:**
+**Formats:**
 - **CSV:** `data/heise_articles_YYYYMMDD.csv`
 - **Excel:** `data/heise_articles_YYYYMMDD.xlsx`
 - **JSON:** `data/heise_articles_YYYYMMDD.json`
@@ -356,44 +354,44 @@ Stand: 02.10.2025 10:30
 
 ---
 
-## 🐳 Docker-Architektur
+## 🐳 Docker Architecture
 
 ### Docker Compose Services
 
 ```yaml
 services:
   heise-archive-crawler:
-    - Führt heise/main.py aus
-    - Rückwärts-Crawling
+    - Runs heise/main.py
+    - Backward crawling
     - Restart: unless-stopped
     
   heise-live-crawler:
-    - Führt heise/current_crawler.py aus
-    - Prüft alle 5 Minuten
+    - Runs heise/current_crawler.py
+    - Checks every 5 minutes
     - Restart: unless-stopped
     
   chip-archive-crawler:
-    - Führt chip/main.py aus
-    - Vorwärts-Crawling
+    - Runs chip/main.py
+    - Forward crawling
     - Restart: unless-stopped
     
   chip-live-crawler:
-    - Führt chip/current_crawler.py aus
-    - Prüft alle 10 Minuten
+    - Runs chip/current_crawler.py
+    - Checks every 10 minutes
     - Restart: unless-stopped
     
   streamlit-dashboard:
-    - Führt streamlit run aus
+    - Runs streamlit run
     - Port 8501 exposed
-    - Volumes für Code-Updates
+    - Volumes for code updates
     
   discord-bot:
-    - Führt heise/bot.py aus
-    - Postet alle 10 Minuten
+    - Runs heise/bot.py
+    - Posts every 10 minutes
     - Restart: unless-stopped
 ```
 
-### Docker-Netzwerk
+### Docker Network
 
 ```
 crawler-network (bridge):
@@ -405,46 +403,46 @@ crawler-network (bridge):
   └─> discord-bot
 ```
 
-Alle Container können sich über dieses Netzwerk erreichen und teilen die gleiche `.env`-Datei.
+All containers can reach each other via this network and share the same `.env` file.
 
 ---
 
-## 🔐 Sicherheit
+## 🔐 Security
 
-### Umgebungsvariablen
+### Environment Variables
 
-Sensible Daten werden über `.env`-Datei verwaltet:
-- Niemals in Git committen (`.gitignore`)
-- Nur lesbar für Container
-- Verschlüsselte Übertragung (SMTP SSL/TLS)
+Sensitive data is managed via `.env` file:
+- Never commit to Git (`.gitignore`)
+- Read-only for containers
+- Encrypted transmission (SMTP SSL/TLS)
 
-### Datenbank-Sicherheit
+### Database Security
 
-- PostgreSQL-Zugriff nur über Credentials
-- Unique Constraints verhindern Duplikate
-- Prepared Statements gegen SQL-Injection
-- Index auf häufig abgefragte Spalten
+- PostgreSQL access only via credentials
+- Unique constraints prevent duplicates
+- Prepared statements against SQL injection
+- Index on frequently queried columns
 
-### API-Sicherheit
+### API Security
 
-- Keine Authentifizierung (lokaler Zugriff)
-- Bei öffentlichem Deployment: OAuth/JWT empfohlen
-- Rate-Limiting für API-Endpoints
+- No authentication (local access)
+- For public deployment: OAuth/JWT recommended
+- Rate limiting for API endpoints
 
 ---
 
-## 📈 Skalierbarkeit
+## 📈 Scalability
 
-### Horizontale Skalierung
+### Horizontal Scaling
 
-**Weitere Quellen hinzufügen:**
-1. Neuen Ordner erstellen (z.B. `golem/`)
-2. Crawler-Skripte kopieren und anpassen
-3. Neue Tabelle in DB erstellen
-4. Service zu `docker-compose.yml` hinzufügen
-5. Streamlit lädt automatisch neue Tabelle
+**Adding more sources:**
+1. Create new folder (e.g., `golem/`)
+2. Copy and adapt crawler scripts
+3. Create new table in DB
+4. Add service to `docker-compose.yml`
+5. Streamlit automatically loads new table
 
-**Beispiel:**
+**Example:**
 ```yaml
 golem-live-crawler:
   build: .
@@ -453,60 +451,60 @@ golem-live-crawler:
   ...
 ```
 
-### Vertikale Skalierung
+### Vertical Scaling
 
-**Performance-Optimierungen:**
-- Datenbank-Indizes auf häufig abgefragte Spalten
-- Streamlit-Caching für große Datasets
-- Batch-Inserts statt einzelner INSERTs
-- Connection Pooling für Datenbank
+**Performance Optimizations:**
+- Database indexes on frequently queried columns
+- Streamlit caching for large datasets
+- Batch inserts instead of individual INSERTs
+- Connection pooling for database
 
 ### Load Balancing
 
-**Bei hoher Last:**
-- Mehrere Streamlit-Instanzen hinter Nginx
-- PostgreSQL Read Replicas
-- Redis für Session-Management
-- CDN für statische Assets
+**Under high load:**
+- Multiple Streamlit instances behind Nginx
+- PostgreSQL read replicas
+- Redis for session management
+- CDN for static assets
 
 ---
 
-## 🔄 Erweiterbarkeit
+## 🔄 Extensibility
 
-### Plugin-Architektur
+### Plugin Architecture
 
-Das System ist modular aufgebaut:
+The system is modularly structured:
 
 ```
 plugins/
 ├── crawlers/
 │   ├── heise_crawler.py
 │   ├── chip_crawler.py
-│   └── custom_crawler.py  <- Neuer Crawler
+│   └── custom_crawler.py  <- New crawler
 │
 ├── exporters/
 │   ├── csv_exporter.py
 │   ├── json_exporter.py
-│   └── pdf_exporter.py    <- Neuer Exporter
+│   └── pdf_exporter.py    <- New exporter
 │
 └── visualizations/
     ├── network_graph.py
     ├── time_series.py
-    └── custom_viz.py      <- Neue Visualisierung
+    └── custom_viz.py      <- New visualization
 ```
 
-### API-Endpunkte
+### API Endpoints
 
-**Bestehende:**
-- `/stats` - Gesamtstatistiken
-- `/articles` - Alle Artikel
+**Existing:**
+- `/stats` - Overall statistics
+- `/articles` - All articles
 
-**Erweiterbar:**
-- `/api/v1/heise/articles` - Nur Heise
-- `/api/v1/chip/articles` - Nur Chip
-- `/api/v1/search?q=keyword` - Suche
-- `/api/v1/authors` - Autoren-Liste
-- `/api/v1/keywords` - Keyword-Trends
+**Extensible:**
+- `/api/v1/heise/articles` - Heise only
+- `/api/v1/chip/articles` - Chip only
+- `/api/v1/search?q=keyword` - Search
+- `/api/v1/authors` - Author list
+- `/api/v1/keywords` - Keyword trends
 
 ---
 
@@ -514,27 +512,27 @@ plugins/
 
 ### Crawler
 
-1. **Rate Limiting:** Pause zwischen Requests (1-2 Sekunden)
-2. **User-Agent:** Identifizierbar als Bot
-3. **Robots.txt:** Respektieren der Crawling-Regeln
-4. **Error Handling:** Graceful Degradation bei Fehlern
-5. **Logging:** Ausführliche Logs für Debugging
+1. **Rate Limiting:** Pause between requests (1-2 seconds)
+2. **User-Agent:** Identifiable as bot
+3. **Robots.txt:** Respect crawling rules
+4. **Error Handling:** Graceful degradation on errors
+5. **Logging:** Detailed logs for debugging
 
-### Datenbank
+### Database
 
-1. **Normalisierung:** Separate Tabellen für bessere Performance
-2. **Indizes:** Auf häufig abgefragte Spalten
-3. **Backups:** Regelmäßige Datenbank-Backups
-4. **Constraints:** UNIQUE auf URL verhindert Duplikate
-5. **Transactions:** ACID-Eigenschaften nutzen
+1. **Normalization:** Separate tables for better performance
+2. **Indexes:** On frequently queried columns
+3. **Backups:** Regular database backups
+4. **Constraints:** UNIQUE on URL prevents duplicates
+5. **Transactions:** Utilize ACID properties
 
 ### Streamlit
 
-1. **Caching:** `@st.cache_data` für teure Operationen
-2. **Lazy Loading:** Große Datasets erst bei Bedarf laden
-3. **Pagination:** Bei sehr vielen Artikeln
-4. **Responsive:** Mobile-freundliches Layout
-5. **Error Handling:** Try-Except für alle DB-Queries
+1. **Caching:** `@st.cache_data` for expensive operations
+2. **Lazy Loading:** Load large datasets only when needed
+3. **Pagination:** For very many articles
+4. **Responsive:** Mobile-friendly layout
+5. **Error Handling:** Try-Except for all DB queries
 
 ---
 
@@ -546,89 +544,89 @@ plugins/
 # Docker Logs
 docker-compose logs -f [service-name]
 
-# Spezifischer Crawler
+# Specific Crawler
 docker-compose logs -f heise-live-crawler
 
-# Alle Services
+# All Services
 docker-compose logs -f
 ```
 
-### Metriken
+### Metrics
 
-**Wichtige KPIs:**
-- Artikel pro Tag
-- Crawler-Erfolgsrate
-- Duplikate-Erkennungsrate
-- API-Response-Zeit
-- Streamlit-Load-Zeit
+**Important KPIs:**
+- Articles per day
+- Crawler success rate
+- Duplicate detection rate
+- API response time
+- Streamlit load time
 
 ### Alerts
 
-**E-Mail-Benachrichtigungen bei:**
-- Weniger als 10 Artikel/Tag
-- Datenbank-Verbindungsfehler
-- Crawler-Crashes
-- Disk Space < 10%
+**Email notifications for:**
+- Less than 10 articles/day
+- Database connection errors
+- Crawler crashes
+- Disk space < 10%
 
 ---
 
-## 🚀 Deployment-Optionen
+## 🚀 Deployment Options
 
-### Option 1: Lokales Deployment
+### Option 1: Local Deployment
 
 ```bash
-# Crawlers manuell starten
+# Start crawlers manually
 python3 heise/main.py
 python3 chip/main.py
 
-# Streamlit starten
+# Start Streamlit
 streamlit run visualization/streamlit_app.py
 ```
 
 ### Option 2: Docker Deployment
 
 ```bash
-# Alle Services starten
+# Start all services
 docker-compose up -d
 
-# Logs überwachen
+# Monitor logs
 docker-compose logs -f
 ```
 
 ### Option 3: Cloud Deployment (AWS/GCP/Azure)
 
-**Empfohlene Architektur:**
-- EC2/Compute Engine/VM für Container
-- RDS/Cloud SQL/Azure DB für PostgreSQL
-- CloudWatch/Logging für Monitoring
-- S3/Cloud Storage für Exports
-- Load Balancer für Streamlit
+**Recommended Architecture:**
+- EC2/Compute Engine/VM for containers
+- RDS/Cloud SQL/Azure DB for PostgreSQL
+- CloudWatch/Logging for monitoring
+- S3/Cloud Storage for exports
+- Load Balancer for Streamlit
 
 ---
 
-## 📚 Weiterführende Dokumentation
+## 📚 Further Documentation
 
-- **[README.md](README.md)** - Hauptdokumentation
-- **[QUICKSTART.md](QUICKSTART.md)** - Schnellstart-Anleitung
-- **[DOCKER_SETUP.md](DOCKER_SETUP.md)** - Docker-Setup-Details
-- **[SECURITY.md](SECURITY.md)** - Sicherheitsrichtlinien
+- **[README.md](README.md)** - Main documentation
+- **[QUICKSTART.md](QUICKSTART.md)** - Quick start guide
+- **[DOCKER_SETUP.md](DOCKER_SETUP.md)** - Docker setup details
+- **[SECURITY.md](SECURITY.md)** - Security guidelines
 
 ---
 
-## 🤝 Beiträge
+## 🤝 Contributions
 
-Beiträge sind willkommen! Bitte öffnen Sie ein Issue oder Pull Request auf GitHub.
+Contributions are welcome! Please open an issue or pull request on GitHub.
 
 **Contribution Guidelines:**
-1. Fork das Repository
-2. Erstellen Sie einen Feature-Branch
-3. Committen Sie Ihre Änderungen
-4. Pushen Sie zum Branch
-5. Öffnen Sie einen Pull Request
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Open a pull request
 
 ---
 
-**Stand:** Oktober 2025  
+**As of:** October 2025  
 **Version:** 2.0 (Separate Tables Architecture)  
 **Status:** ✅ Production Ready
 

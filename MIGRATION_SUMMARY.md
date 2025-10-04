@@ -163,12 +163,12 @@ Last update: 14:32:15
 ```python
 # German comments and UI
 def get_db_connection():
-    """Erstellt eine Datenbankverbindung"""
-    st.error("Datenbankverbindung fehlgeschlagen")
+    """Creates a database connection"""
+    st.error("Database connection failed")
 
 st.sidebar.title("Navigation")
-st.sidebar.subheader("Daten-Info")
-st.sidebar.metric("Artikel gesamt", len(df))
+st.sidebar.subheader("Data Info")
+st.sidebar.metric("Total articles", len(df))
 ```
 
 ### ✅ After (Consistent English)
