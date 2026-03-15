@@ -418,12 +418,44 @@ def export_db():
     except Exception as e:
         return str(e)
 
+from urllib.parse import urlparse as _urlparse
+
+_HEISE_BASE = "https://www.heise.de"
+
+
+def _sanitize_heise_url(url):
+    """
+    Validates that *url* is a heise.de URL and returns a reconstructed URL
+    built entirely from the hardcoded heise.de base plus the path/query
+    extracted from the input.  This prevents SSRF because the scheme and
+    host of the outgoing request are never taken from user input.
+    Raises ValueError for invalid or non-heise URLs.
+    """
+    parsed = _urlparse(url)
+    if parsed.scheme not in ('http', 'https'):
+        raise ValueError(f"Ungültiges URL-Schema: {parsed.scheme!r}")
+    hostname = parsed.hostname or ''
+    if not (hostname == 'www.heise.de' or hostname.endswith('.heise.de')):
+        raise ValueError(f"URL ist nicht von heise.de: {hostname!r}")
+    # Reconstruct from the hardcoded base so that the net-loc is never user-controlled
+    safe = _HEISE_BASE + parsed.path
+    if parsed.query:
+        safe += '?' + parsed.query
+    return safe
+
+
 def fetch_content_cloudflare(url):
     """
     Fetches article content using the Cloudflare Browser Rendering crawl endpoint.
     Returns the content as HTML (converted from markdown) or None if unavailable.
     Requires CF_API_TOKEN and CF_ACCOUNT_ID environment variables.
+    Only accepts URLs from heise.de to prevent SSRF attacks.
     """
+    try:
+        safe_url = _sanitize_heise_url(url)
+    except ValueError:
+        return None
+
     cf_token = os.getenv('CF_API_TOKEN')
     cf_account = os.getenv('CF_ACCOUNT_ID')
     if not cf_token or not cf_account:
@@ -435,7 +467,7 @@ def fetch_content_cloudflare(url):
             "Content-Type": "application/json"
         }
         payload = {
-            "url": url,
+            "url": safe_url,
             "options": {"waitUntil": "networkidle2"}
         }
         resp = requests.post(api_url, headers=headers, json=payload, timeout=30)
@@ -461,9 +493,15 @@ def fetch_content_beautifulsoup(url):
     Fetches article content using BeautifulSoup as a fallback.
     Tries multiple extraction strategies for Heise articles.
     Returns HTML string or None.
+    Only accepts URLs from heise.de to prevent SSRF attacks.
     """
     try:
-        response = requests.get(url, timeout=10)
+        safe_url = _sanitize_heise_url(url)
+    except ValueError:
+        return None
+
+    try:
+        response = requests.get(safe_url, timeout=10)
         if response.status_code != 200:
             return None
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -512,6 +550,12 @@ def article_preview():
     url = request.args.get('url', '')
     if not url:
         return jsonify({'success': False, 'error': 'Keine URL angegeben'})
+
+    # Validate and sanitize URL early to return a clear error before attempting any fetch
+    try:
+        _sanitize_heise_url(url)
+    except ValueError as exc:
+        return jsonify({'success': False, 'error': str(exc)})
 
     try:
         # First attempt: Cloudflare Browser Rendering crawl endpoint

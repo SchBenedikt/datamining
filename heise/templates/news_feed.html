@@ -335,6 +335,8 @@ $(function () {
         marked.setOptions({ breaks: true, gfm: true });
     }
 
+    var CONTEXT_MENU_WIDTH = 210;
+
     // Filter toggle
     $('#filterToggle').on('click', function () {
         $('#filterContent').toggleClass('show');
@@ -356,7 +358,7 @@ $(function () {
         selUrl   = $(this).data('url');
         selTitle = $(this).data('title');
         ctxMenu.style.display = 'block';
-        ctxMenu.style.left = Math.min(e.pageX, window.innerWidth - 210) + 'px';
+        ctxMenu.style.left = Math.min(e.pageX, window.innerWidth - CONTEXT_MENU_WIDTH) + 'px';
         ctxMenu.style.top  = e.pageY + 'px';
     });
 
