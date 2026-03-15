@@ -15,6 +15,7 @@ from flask import Flask, render_template, request, send_file, redirect, url_for,
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from datetime import datetime
+import markdown as md_lib
 
 # Load environment variables from root .env file
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
@@ -172,7 +173,7 @@ def get_all_categories():
     try:
         conn = psycopg2.connect(**db_params)
         cur = conn.cursor()
-        cur.execute("SELECT DISTINCT category FROM articles WHERE category != 'N/A' ORDER BY category;")
+        cur.execute("SELECT DISTINCT category FROM heise WHERE category IS NOT NULL AND category != 'N/A' ORDER BY category;")
         categories = [row[0] for row in cur.fetchall()]
         cur.close()
         conn.close()
@@ -190,9 +191,9 @@ def search_articles(search_term=None, category=None, author=None, date_from=None
         conn = psycopg2.connect(**db_params)
         cur = conn.cursor()
         
-        # Basis-Query
-        query = "SELECT title, url, date, author, category, keywords FROM articles WHERE 1=1"
-        count_query = "SELECT COUNT(*) FROM articles WHERE 1=1"
+        # Basis-Query – also fetch word_count for display
+        query = "SELECT title, url, date, author, category, keywords, word_count FROM heise WHERE 1=1"
+        count_query = "SELECT COUNT(*) FROM heise WHERE 1=1"
         params = []
         
         # Suchbedingungen hinzufügen
@@ -252,7 +253,8 @@ def search_articles(search_term=None, category=None, author=None, date_from=None
                 'date': row[2],
                 'author': row[3],
                 'category': row[4],
-                'keywords': row[5]
+                'keywords': row[5],
+                'word_count': row[6]
             }
             articles.append(article)
             
@@ -394,27 +396,153 @@ def query():
 
 @server.route('/export_db')
 def export_db():
-    # Erstellen einer temporären SQLite-Datenbank mit den Artikeln
+    # Erstellen einer temporären SQLite-Datenbank mit den Heise-Artikeln
     try:
         conn = psycopg2.connect(**db_params)
-        df = pd.read_sql_query("SELECT * FROM articles", conn)
+        df = pd.read_sql_query("SELECT * FROM heise", conn)
         conn.close()
         
         # Temporäre SQLite-DB erstellen
         db_path = tempfile.mktemp(suffix='.db')
         sqlite_conn = sqlite3.connect(db_path)
-        df.to_sql('articles', sqlite_conn, if_exists='replace', index=False)
+        df.to_sql('heise', sqlite_conn, if_exists='replace', index=False)
         sqlite_conn.close()
         
         # DB als Download anbieten
         return send_file(
             db_path,
             as_attachment=True,
-            download_name='articles_export.db',
+            download_name='heise_export.db',
             mimetype='application/octet-stream'
         )
     except Exception as e:
         return str(e)
+
+from urllib.parse import urlparse as _urlparse
+
+_HEISE_BASE = "https://www.heise.de"
+
+
+def _sanitize_heise_url(url):
+    """
+    Validates that *url* is a heise.de URL and returns a reconstructed URL
+    built entirely from the hardcoded heise.de base plus the path/query
+    extracted from the input.  This prevents SSRF because the scheme and
+    host of the outgoing request are never taken from user input.
+    Raises ValueError for invalid or non-heise URLs.
+    """
+    parsed = _urlparse(url)
+    if parsed.scheme not in ('http', 'https'):
+        raise ValueError(f"Ungültiges URL-Schema: {parsed.scheme!r}")
+    hostname = parsed.hostname or ''
+    if not (hostname == 'www.heise.de' or hostname.endswith('.heise.de')):
+        raise ValueError(f"URL ist nicht von heise.de: {hostname!r}")
+    # Reconstruct from the hardcoded base so that the net-loc is never user-controlled
+    safe = _HEISE_BASE + parsed.path
+    if parsed.query:
+        safe += '?' + parsed.query
+    return safe
+
+
+def fetch_content_cloudflare(url):
+    """
+    Fetches article content using the Cloudflare Browser Rendering crawl endpoint.
+    Returns the content as HTML (converted from markdown) or None if unavailable.
+    Requires CF_API_TOKEN and CF_ACCOUNT_ID environment variables.
+    Only accepts URLs from heise.de to prevent SSRF attacks.
+    """
+    try:
+        safe_url = _sanitize_heise_url(url)
+    except ValueError:
+        return None
+
+    cf_token = os.getenv('CF_API_TOKEN')
+    cf_account = os.getenv('CF_ACCOUNT_ID')
+    if not cf_token or not cf_account:
+        return None
+    try:
+        api_url = f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/browser-rendering/crawl"
+        headers = {
+            "Authorization": f"Bearer {cf_token}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "url": safe_url,
+            "options": {"waitUntil": "networkidle2"}
+        }
+        resp = requests.post(api_url, headers=headers, json=payload, timeout=30)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        if not data.get("success"):
+            return None
+        result = data.get("result", {})
+        # The crawl endpoint returns markdown content
+        content_md = result.get("markdown") or result.get("content") or ""
+        if not content_md.strip():
+            return None
+        # Convert markdown to HTML for display
+        content_html = md_lib.markdown(content_md, extensions=["extra", "nl2br"])
+        return content_html
+    except Exception:
+        return None
+
+
+def fetch_content_beautifulsoup(url):
+    """
+    Fetches article content using BeautifulSoup as a fallback.
+    Tries multiple extraction strategies for Heise articles.
+    Returns HTML string or None.
+    Only accepts URLs from heise.de to prevent SSRF attacks.
+    """
+    try:
+        safe_url = _sanitize_heise_url(url)
+    except ValueError:
+        return None
+
+    try:
+        response = requests.get(safe_url, timeout=10)
+        if response.status_code != 200:
+            return None
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # Strategy 1: find the main article-content div
+        article_content = soup.find('div', class_='article-content')
+        if article_content:
+            for ad in article_content.find_all(['div'], class_=['ad', 'ad-label', 'ad--sticky', 'ad--inread', 'inread-cls-reduc']):
+                ad.decompose()
+            for paternoster in article_content.find_all('a-paternoster'):
+                paternoster.decompose()
+            content_html = "".join(
+                str(el) for el in article_content.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li'])
+            )
+            if content_html.strip():
+                return content_html
+
+        # Strategy 2: extract content between RSPEAK markers
+        html_str = str(soup)
+        start_markers = [m.start() for m in re.finditer('<!-- RSPEAK_START -->', html_str)]
+        end_markers = [m.start() for m in re.finditer('<!-- RSPEAK_STOP -->', html_str)]
+        if start_markers and end_markers and len(start_markers) == len(end_markers):
+            parts = []
+            for i in range(len(start_markers)):
+                s = start_markers[i] + len('<!-- RSPEAK_START -->')
+                e = end_markers[i]
+                if s < e:
+                    parts.append(html_str[s:e].strip())
+            if parts:
+                combined = ''.join(parts)
+                content_soup = BeautifulSoup(combined, 'html.parser')
+                content_html = ''.join(
+                    str(el) for el in content_soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li'])
+                )
+                if content_html.strip():
+                    return content_html
+
+        return None
+    except Exception:
+        return None
+
 
 # Neue Route für die Artikel-Vorschau
 @server.route('/article_preview')
@@ -422,67 +550,32 @@ def article_preview():
     url = request.args.get('url', '')
     if not url:
         return jsonify({'success': False, 'error': 'Keine URL angegeben'})
-    
+
+    # Validate and sanitize URL early to return a clear error before attempting any fetch
     try:
-        # Artikel-Seite abrufen
-        response = requests.get(url, timeout=10)
-        if response.status_code != 200:
-            return jsonify({'success': False, 'error': f'HTTP Fehler: {response.status_code}'})
-        
-        # HTML parsen
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Den Hauptinhalt des Artikels extrahieren
-        article_content = soup.find('div', class_='article-content')
-        
-        if not article_content:
-            return jsonify({'success': False, 'error': 'Artikel-Inhalt konnte nicht gefunden werden'})
-        
-        # Unerwünschte Elemente entfernen (Werbung, etc.)
-        for ad in article_content.find_all(['div'], class_=['ad', 'ad-label', 'ad--sticky', 'ad--inread', 'inread-cls-reduc']):
-            ad.decompose()
-        
-        for paternoster in article_content.find_all('a-paternoster'):
-            paternoster.decompose()
-        
-        # Nur den eigentlichen Text des Artikels behalten
-        content_html = ""
-        for element in article_content.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li']):
-            content_html += str(element)
-        
-        # Falls der Inhalt leer ist, versuchen wir es mit einer anderen Methode
-        if not content_html.strip():
-            # Alternative: Den Text zwischen RSPEAK_START und RSPEAK_STOP finden
-            html_str = str(soup)
-            content_parts = []
-            
-            start_markers = [m.start() for m in re.finditer('<!-- RSPEAK_START -->', html_str)]
-            end_markers = [m.start() for m in re.finditer('<!-- RSPEAK_STOP -->', html_str)]
-            
-            if start_markers and end_markers and len(start_markers) == len(end_markers):
-                for i in range(len(start_markers)):
-                    if i < len(end_markers):
-                        start_pos = start_markers[i] + len('<!-- RSPEAK_START -->')
-                        end_pos = end_markers[i]
-                        if start_pos < end_pos:
-                            content_parts.append(html_str[start_pos:end_pos].strip())
-                
-                content_html = ''.join(content_parts)
-                # HTML-Parser nochmal anwenden, um nur die relevanten Elemente zu behalten
-                content_soup = BeautifulSoup(content_html, 'html.parser')
-                content_html = ''.join(str(el) for el in content_soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li']))
-        
-        if not content_html.strip():
+        _sanitize_heise_url(url)
+    except ValueError as exc:
+        return jsonify({'success': False, 'error': str(exc)})
+
+    try:
+        # First attempt: Cloudflare Browser Rendering crawl endpoint
+        content_html = fetch_content_cloudflare(url)
+        source = 'Cloudflare Browser Rendering' if content_html else None
+
+        # Fallback: classic BeautifulSoup extraction
+        if not content_html:
+            content_html = fetch_content_beautifulsoup(url)
+            if content_html:
+                source = 'BeautifulSoup'
+
+        if not content_html:
             return jsonify({'success': False, 'error': 'Artikel-Inhalt konnte nicht extrahiert werden'})
-        
-        return jsonify({
-            'success': True,
-            'content': content_html,
-            'url': url
-        })
-        
+
+        return jsonify({'success': True, 'content': content_html, 'url': url, 'source': source, 'format': 'html'})
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
 
 if __name__ == "__main__":
     app.run_server(debug=True, host="0.0.0.0", port=6800)

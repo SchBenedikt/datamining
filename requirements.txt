@@ -19,3 +19,4 @@ textblob>=0.17.1
 textblob-de>=0.4.3
 tqdm>=4.65.0
 streamlit>=1.22.0
+markdown>=3.4.0

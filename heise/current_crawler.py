@@ -22,6 +22,39 @@ def print_status(message, level="INFO"):
     }
     print(f"{now} {colors.get(level, colors['INFO'])}[{level}] {message}{colors['RESET']}")
 
+
+def fetch_page_via_cloudflare(url):
+    """
+    Fetches page HTML using the Cloudflare Browser Rendering crawl endpoint.
+    Returns a BeautifulSoup object if successful, or None to fall back to
+    a plain requests.get call.
+    Requires CF_API_TOKEN and CF_ACCOUNT_ID environment variables.
+    """
+    cf_token = os.getenv('CF_API_TOKEN')
+    cf_account = os.getenv('CF_ACCOUNT_ID')
+    if not cf_token or not cf_account:
+        return None
+    try:
+        api_url = f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/browser-rendering/crawl"
+        headers = {
+            "Authorization": f"Bearer {cf_token}",
+            "Content-Type": "application/json"
+        }
+        payload = {"url": url, "options": {"waitUntil": "networkidle2"}}
+        resp = requests.post(api_url, headers=headers, json=payload, timeout=30)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        if not data.get("success"):
+            return None
+        result = data.get("result", {})
+        raw_html = result.get("html") or result.get("content") or ""
+        if not raw_html:
+            return None
+        return BeautifulSoup(raw_html, 'html.parser')
+    except Exception:
+        return None
+
 # Database connection function
 def connect_db():
     try:
@@ -98,10 +131,17 @@ def insert_article(conn, title, url, date, author, category, keywords, word_coun
     conn.commit()
     return replaced
 
-# Die bestehende get_article_details-Funktion (wie in main.py)
+# Die bestehende get_article_details-Funktion – nutzt Cloudflare BR crawl wenn verfügbar
 def get_article_details(url):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
+    """
+    Extracts article metadata from the given URL.
+    Uses the Cloudflare Browser Rendering crawl endpoint when credentials are
+    configured (CF_API_TOKEN / CF_ACCOUNT_ID), falling back to plain requests.
+    """
+    soup = fetch_page_via_cloudflare(url)
+    if soup is None:
+        response = requests.get(url)
+        soup = BeautifulSoup(response.content, 'html.parser')
     editor_abbr = "N/A"
     editor_span = soup.find("span", class_="redakteurskuerzel")
     if editor_span:

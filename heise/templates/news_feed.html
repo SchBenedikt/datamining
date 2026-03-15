@@ -3,541 +3,423 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>Heise Search</title>
+    <title>Heise News Search</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Roboto', sans-serif;
-            background-color: #f8f9fa;
-            color: #333;
-            line-height: 1.6;
-        }
-        
-        /* Header und Suchleiste */
-        .search-header {
-            text-align: center;
-            padding: 2rem 0;
-        }
-        
-        .search-logo {
-            font-size: 2.5rem;
-            font-weight: 500;
-            color: #1a73e8;
-            margin-bottom: 1.5rem;
-        }
-        
+        body { font-family: Roboto, sans-serif; background: #f8f9fa; color: #333; line-height: 1.6; }
+        .top-nav { background: #fff; border-bottom: 1px solid #e8eaed; padding: 0.5rem 0; }
+        .top-nav a { color: #5f6368; font-size: 0.85rem; padding: 0.4rem 0.8rem; text-decoration: none; border-radius: 4px; transition: background 0.15s; }
+        .top-nav a:hover { background: #f1f3f4; color: #333; }
+        .top-nav a.active { color: #1a73e8; font-weight: 500; }
+        .search-header { text-align: center; padding: 2rem 0 1.5rem; }
+        .search-logo { font-size: 2.5rem; font-weight: 500; margin-bottom: 1.5rem; letter-spacing: -1px; }
         .search-logo span:nth-child(1) { color: #4285f4; }
         .search-logo span:nth-child(2) { color: #ea4335; }
         .search-logo span:nth-child(3) { color: #fbbc05; }
         .search-logo span:nth-child(4) { color: #4285f4; }
         .search-logo span:nth-child(5) { color: #34a853; }
         .search-logo span:nth-child(6) { color: #ea4335; }
-        
-        .search-box {
-            max-width: 650px;
-            margin: 0 auto 2rem;
-            position: relative;
-        }
-        
-        .search-input {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            border: 1px solid #dfe1e5;
-            border-radius: 24px;
-            font-size: 1rem;
-            box-shadow: 0 1px 6px rgba(32, 33, 36, 0.08);
-            transition: all 0.2s;
-        }
-        
-        .search-input:hover {
-            box-shadow: 0 1px 6px rgba(32, 33, 36, 0.2);
-        }
-        
-        .search-input:focus {
-            outline: none;
-            box-shadow: 0 1px 8px rgba(32, 33, 36, 0.2);
-        }
-        
-        .search-button {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: #1a73e8;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            font-size: 1.2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        }
-        
-        /* Filter und Einstellungen */
-        .search-filters {
-            background-color: white;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-        }
-        
-        .filter-toggle {
-            color: #1a73e8;
-            cursor: pointer;
-            user-select: none;
-            font-size: 0.9rem;
-        }
-        
-        .filter-toggle:hover {
-            text-decoration: underline;
-        }
-        
-        .filter-content {
-            display: none;
-            padding-top: 1rem;
-        }
-        
-        .filter-content.show {
-            display: block;
-        }
-        
-        /* Suchergebnisse */
-        .search-result {
-            background-color: white;
-            border-radius: 8px;
-            padding: 1.2rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-            transition: transform 0.1s ease;
-            cursor: pointer;
-        }
-        
-        .search-result:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 3px 5px rgba(0, 0, 0, 0.1);
-        }
-        
-        .result-title {
-            color: #1a0dab;
-            font-size: 1.1rem;
-            font-weight: 400;
-            margin-bottom: 0.5rem;
-            display: block;
-            text-decoration: none;
-        }
-        
-        .result-title:hover {
-            text-decoration: underline;
-        }
-        
-        .result-meta {
-            color: #70757a;
-            font-size: 0.8rem;
-            margin-bottom: 0.3rem;
-        }
-        
-        .result-meta span {
-            margin-right: 0.8rem;
-        }
-        
-        .result-meta span:last-child {
-            margin-right: 0;
-        }
-        
-        .result-category {
-            display: inline-block;
-            padding: 2px 8px;
-            background-color: #f1f3f4;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            color: #444;
-        }
-        
-        /* Paginierung */
-        .pagination-container {
-            margin: 2rem 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-        }
-        
-        .pagination {
-            margin-bottom: 0.5rem;
-        }
-        
-        .page-link {
-            color: #1a73e8;
-            border-color: #dee2e6;
-            min-width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .page-item.active .page-link {
-            background-color: #1a73e8;
-            border-color: #1a73e8;
-        }
-        
-        .page-info {
-            color: #70757a;
-            font-size: 0.85rem;
-        }
-        
-        /* Kontextmenü und Modal */
-        .context-menu {
-            display: none;
-            position: absolute;
-            background-color: white;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            border-radius: 4px;
-            z-index: 1000;
-            overflow: hidden;
-        }
-        
-        .context-menu-item {
-            padding: 0.75rem 1.25rem;
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: background 0.2s;
-        }
-        
-        .context-menu-item:hover {
-            background-color: #f1f3f4;
-        }
-        
-        .modal-content {
-            border-radius: 8px;
-            border: none;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-        
-        .modal-header {
-            border-bottom: 1px solid #eee;
-            padding: 1rem 1.5rem;
-        }
-        
-        .modal-body {
-            padding: 1.5rem;
-        }
-        
-        .article-content {
-            font-size: 1rem;
-            line-height: 1.7;
-        }
-        
-        /* Responsive Design */
+        .search-box { max-width: 650px; margin: 0 auto 1rem; position: relative; }
+        .search-input { width: 100%; padding: 0.75rem 3rem 0.75rem 1rem; border: 1px solid #dfe1e5; border-radius: 24px; font-size: 1rem; box-shadow: 0 1px 6px rgba(32,33,36,.08); transition: box-shadow .2s; outline: none; }
+        .search-input:hover, .search-input:focus { box-shadow: 0 1px 8px rgba(32,33,36,.2); }
+        .search-button { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: #1a73e8; color: #fff; border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .search-button:hover { background: #1558b0; }
+        .search-filters { background: #fff; border-radius: 8px; padding: .9rem 1rem; margin-bottom: 1.5rem; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+        .filter-toggle { color: #1a73e8; cursor: pointer; user-select: none; font-size: .9rem; }
+        .filter-toggle:hover { text-decoration: underline; }
+        .filter-content { display: none; padding-top: 1rem; }
+        .filter-content.show { display: block; }
+        .search-result { background: #fff; border-radius: 8px; padding: 1.2rem; margin-bottom: .9rem; box-shadow: 0 1px 2px rgba(0,0,0,.06); transition: box-shadow .15s, transform .1s; cursor: pointer; }
+        .search-result:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,.1); }
+        .result-title { color: #1a0dab; font-size: 1.05rem; font-weight: 400; text-decoration: none; display: block; margin-bottom: .35rem; }
+        .result-title:hover { text-decoration: underline; color: #1a0dab; }
+        .result-url { color: #006621; font-size: .78rem; margin-bottom: .4rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .result-meta { color: #70757a; font-size: .8rem; margin-bottom: .5rem; display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+        .result-category { display: inline-block; padding: 2px 8px; background: #e8f0fe; color: #1967d2; border-radius: 12px; font-size: .75rem; font-weight: 500; }
+        .result-word-count { display: inline-block; padding: 2px 8px; background: #e6f4ea; color: #137333; border-radius: 12px; font-size: .75rem; }
+        .keyword-tags { margin-top: .5rem; display: flex; flex-wrap: wrap; gap: .3rem; }
+        .keyword-tag { display: inline-block; padding: 2px 8px; background: #f1f3f4; color: #5f6368; border-radius: 10px; font-size: .73rem; text-decoration: none; transition: background .15s; }
+        .keyword-tag:hover { background: #e0e0e0; color: #333; text-decoration: none; }
+        .result-count-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding: 0 .25rem; }
+        .result-count-bar .count-text { color: #70757a; font-size: .88rem; }
+        .pagination-container { margin: 2rem 0; display: flex; justify-content: center; align-items: center; flex-direction: column; gap: .4rem; }
+        .pagination { margin-bottom: 0; }
+        .page-link { color: #1a73e8; border-color: #dee2e6; min-width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; }
+        .page-item.active .page-link { background: #1a73e8; border-color: #1a73e8; color: #fff; }
+        .page-info { color: #70757a; font-size: .83rem; }
+        .context-menu { display: none; position: fixed; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.15); border-radius: 6px; z-index: 2000; overflow: hidden; min-width: 190px; }
+        .context-menu-item { padding: .7rem 1.1rem; cursor: pointer; font-size: .88rem; display: flex; align-items: center; gap: .5rem; transition: background .15s; }
+        .context-menu-item:hover { background: #f1f3f4; }
+        .modal-content { border-radius: 10px; border: none; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+        .modal-body { padding: 1.5rem; max-height: 70vh; overflow-y: auto; }
+        .article-content { font-size: .97rem; line-height: 1.75; color: #333; }
+        .article-content h1, .article-content h2, .article-content h3 { margin-top: 1.4rem; margin-bottom: .6rem; font-weight: 500; color: #1a1a1a; }
+        .article-content p { margin-bottom: .9rem; }
+        .article-content blockquote { border-left: 3px solid #1a73e8; padding-left: 1rem; color: #555; font-style: italic; margin: 1rem 0; }
+        .article-content code { background: #f1f3f4; padding: 2px 5px; border-radius: 3px; font-size: .9em; }
+        .article-content pre { background: #f1f3f4; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+        .article-content a { color: #1a73e8; }
+        .article-content img { max-width: 100%; border-radius: 4px; margin: .5rem 0; }
         @media (max-width: 768px) {
-            .search-logo {
-                font-size: 2rem;
-            }
-            
-            .search-filters {
-                padding: 0.75rem;
-            }
-            
-            .search-result {
-                padding: 1rem;
-            }
+            .search-logo { font-size: 1.9rem; }
+            .search-result { padding: 1rem; }
+            .result-meta { font-size: .75rem; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="search-header">
-            <div class="search-logo">
-                <span>H</span><span>e</span><span>i</span><span>s</span><span>e</span><span>+</span>
-            </div>
-            
-            <form method="get" action="/news" class="search-box">
-                <input type="text" class="search-input" name="search" value="{{ search_term or '' }}" placeholder="Heise-Artikel suchen...">
-                <button type="submit" class="search-button">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M15.5 14H14.71L14.43 13.73C15.41 12.59 16 11.11 16 9.5C16 5.91 13.09 3 9.5 3C5.91 3 3 5.91 3 9.5C3 13.09 5.91 16 9.5 16C11.11 16 12.59 15.41 13.73 14.43L14 14.71V15.5L19 20.49L20.49 19L15.5 14ZM9.5 14C7.01 14 5 11.99 5 9.5C5 7.01 7.01 5 9.5 5C11.99 5 14 7.01 14 9.5C14 11.99 11.99 14 9.5 14Z" fill="currentColor"/>
-                    </svg>
-                </button>
-            </form>
-        </div>
-        
-        <div class="search-filters">
-            <div class="filter-toggle" id="filterToggle">
-                <svg style="width:16px;height:16px;vertical-align:middle;" viewBox="0 0 24 24">
-                    <path fill="currentColor" d="M3,17V19H9V17H3M3,5V7H13V5H3M13,21V19H21V17H13V15H11V21H13M7,9V11H3V13H7V15H9V9H7M21,13V11H11V13H21M15,9H17V7H21V5H17V3H15V9Z" />
-                </svg>
-                Erweiterte Suche
-            </div>
-            
-            <div class="filter-content" id="filterContent">
-                <form method="get" action="/news">
-                    <input type="hidden" name="search" value="{{ search_term or '' }}">
-                    
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label for="category">Kategorie</label>
-                                <select class="form-control" id="category" name="category">
-                                    <option value="">Alle Kategorien</option>
-                                    {% for cat in categories %}
-                                    <option value="{{ cat }}" {% if category == cat %}selected{% endif %}>{{ cat }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label for="author">Autor</label>
-                                <input type="text" class="form-control" id="author" name="author" value="{{ author or '' }}" placeholder="Autorname...">
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label for="sort">Sortieren nach</label>
-                                <select class="form-control" id="sort" name="sort">
-                                    <option value="date_desc" {% if sort == 'date_desc' %}selected{% endif %}>Neueste zuerst</option>
-                                    <option value="date_asc" {% if sort == 'date_asc' %}selected{% endif %}>Älteste zuerst</option>
-                                    <option value="title_asc" {% if sort == 'title_asc' %}selected{% endif %}>Titel (A-Z)</option>
-                                    <option value="title_desc" {% if sort == 'title_desc' %}selected{% endif %}>Titel (Z-A)</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="date_from">Datum von</label>
-                                <input type="date" class="form-control" id="date_from" name="date_from" value="{{ date_from or '' }}">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="date_to">Datum bis</label>
-                                <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to or '' }}">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="text-right">
-                        <a href="/news" class="btn btn-outline-secondary mr-2">Zurücksetzen</a>
-                        <button type="submit" class="btn btn-primary">Filter anwenden</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-        
-        {% if articles %}
-            {% if total_articles %}
-            <p class="text-muted mb-3">{{ total_articles }} Artikel gefunden</p>
-            {% endif %}
-            
-            <div class="search-results">
-                {% for article in articles %}
-                <div class="search-result" data-url="{{ article.url }}" data-title="{{ article.title|replace('"', '&quot;') }}">
-                    <a href="{{ article.url }}" class="result-title" target="_blank">{{ article.title }}</a>
-                    <div class="result-meta">
-                        {% if article.date %}
-                        <span>
-                            <svg style="width:14px;height:14px;vertical-align:middle;" viewBox="0 0 24 24">
-                                <path fill="currentColor" d="M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22C6.47,22 2,17.5 2,12A10,10 0 0,1 12,2M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z" />
-                            </svg>
-                            {{ article.date }}
-                        </span>
-                        {% endif %}
-                        
-                        {% if article.author and article.author != 'N/A' %}
-                        <span>
-                            <svg style="width:14px;height:14px;vertical-align:middle;" viewBox="0 0 24 24">
-                                <path fill="currentColor" d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z" />
-                            </svg>
-                            {{ article.author }}
-                        </span>
-                        {% endif %}
-                        
-                        {% if article.category and article.category != 'N/A' %}
-                        <span class="result-category">{{ article.category }}</span>
-                        {% endif %}
-                    </div>
-                </div>
+
+<nav class="top-nav">
+  <div class="container d-flex align-items-center justify-content-between">
+    <div>
+      <a href="/news" class="active">&#128240; Heise News</a>
+      <a href="/query">&#128269; SQL-Abfragen</a>
+      <a href="/export_db">&#11015; Export (.db)</a>
+    </div>
+    <small class="text-muted d-none d-md-block">Heise News Mining</small>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="search-header">
+    <div class="search-logo">
+      <span>H</span><span>e</span><span>i</span><span>s</span><span>e</span><span>+</span>
+    </div>
+    <form method="get" action="/news" class="search-box">
+      <input type="text" class="search-input" name="search"
+             value="{{ search_term or '' }}" placeholder="Heise-Artikel suchen...">
+      <button type="submit" class="search-button" aria-label="Suchen">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M15.5 14H14.71L14.43 13.73C15.41 12.59 16 11.11 16 9.5C16 5.91 13.09 3 9.5 3C5.91 3 3 5.91 3 9.5C3 13.09 5.91 16 9.5 16C11.11 16 12.59 15.41 13.73 14.43L14 14.71V15.5L19 20.49L20.49 19L15.5 14ZM9.5 14C7.01 14 5 11.99 5 9.5C5 7.01 7.01 5 9.5 5C11.99 5 14 7.01 14 9.5C14 11.99 11.99 14 9.5 14Z" fill="white"/>
+        </svg>
+      </button>
+    </form>
+  </div>
+
+  <div class="search-filters">
+    <div class="filter-toggle" id="filterToggle">
+      <svg style="width:15px;height:15px;vertical-align:middle;margin-right:4px;" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M3,17V19H9V17H3M3,5V7H13V5H3M13,21V19H21V17H13V15H11V21H13M7,9V11H3V13H7V15H9V9H7M21,13V11H11V13H21M15,9H17V7H21V5H17V3H15V9Z"/>
+      </svg>
+      Erweiterte Suche
+    </div>
+    <div class="filter-content" id="filterContent">
+      <form method="get" action="/news">
+        <input type="hidden" name="search" value="{{ search_term or '' }}">
+        <div class="row">
+          <div class="col-md-4">
+            <div class="form-group">
+              <label for="category">Kategorie</label>
+              <select class="form-control form-control-sm" id="category" name="category">
+                <option value="">Alle Kategorien</option>
+                {% for cat in categories %}
+                <option value="{{ cat }}" {% if category == cat %}selected{% endif %}>{{ cat }}</option>
                 {% endfor %}
+              </select>
             </div>
-            
-            <div class="pagination-container">
-                <nav>
-                    <ul class="pagination">
-                        {% if page > 1 %}
-                            <li class="page-item">
-                                <a class="page-link" href="{{ url_for('news_feed', page=page-1, search=search_term, category=category, author=author, date_from=date_from, date_to=date_to, sort=sort) }}" aria-label="Zurück">
-                                    <span aria-hidden="true">&laquo;</span>
-                                </a>
-                            </li>
-                        {% else %}
-                            <li class="page-item disabled">
-                                <a class="page-link" href="#" aria-label="Zurück">
-                                    <span aria-hidden="true">&laquo;</span>
-                                </a>
-                            </li>
-                        {% endif %}
-                        
-                        {% for p in pagination_range %}
-                            <li class="page-item {% if p == page %}active{% endif %}">
-                                <a class="page-link" href="{{ url_for('news_feed', page=p, search=search_term, category=category, author=author, date_from=date_from, date_to=date_to, sort=sort) }}">{{ p }}</a>
-                            </li>
-                        {% endfor %}
-                        
-                        {% if page < total_pages %}
-                            <li class="page-item">
-                                <a class="page-link" href="{{ url_for('news_feed', page=page+1, search=search_term, category=category, author=author, date_from=date_from, date_to=date_to, sort=sort) }}" aria-label="Weiter">
-                                    <span aria-hidden="true">&raquo;</span>
-                                </a>
-                            </li>
-                        {% else %}
-                            <li class="page-item disabled">
-                                <a class="page-link" href="#" aria-label="Weiter">
-                                    <span aria-hidden="true">&raquo;</span>
-                                </a>
-                            </li>
-                        {% endif %}
-                    </ul>
-                </nav>
-                <div class="page-info">Seite {{ page }} von {{ total_pages }}</div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label for="author">Autor</label>
+              <input type="text" class="form-control form-control-sm" id="author" name="author"
+                     value="{{ author or '' }}" placeholder="Autorname...">
             </div>
-        {% else %}
-            <div class="text-center py-5">
-                <svg style="width:64px;height:64px;color:#70757a;margin-bottom:1rem;" viewBox="0 0 24 24">
-                    <path fill="currentColor" d="M15.5,12C18,12 20,14 20,16.5C20,17.38 19.75,18.21 19.31,18.9L22.39,22L21,23.39L17.88,20.32C17.19,20.75 16.37,21 15.5,21C13,21 11,19 11,16.5C11,14 13,12 15.5,12M15.5,14A2.5,2.5 0 0,0 13,16.5A2.5,2.5 0 0,0 15.5,19A2.5,2.5 0 0,0 18,16.5A2.5,2.5 0 0,0 15.5,14M5,3H19C20.11,3 21,3.89 21,5V13.03C20.5,12.23 19.81,11.54 19,11V5H5V19H9.5C9.81,19.75 10.26,20.42 10.81,21H5C3.89,21 3,20.11 3,19V5C3,3.89 3.89,3 5,3M7,7H17V9H7V7M7,11H12V13H7V11M7,15H9V17H7V15Z" />
-                </svg>
-                <h4>Keine Artikel gefunden</h4>
-                <p class="text-muted">Bitte passen Sie Ihre Suchparameter an oder versuchen Sie es mit anderen Suchbegriffen</p>
-                <a href="/news" class="btn btn-outline-primary mt-2">Zur Startseite</a>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label for="sort">Sortierung</label>
+              <select class="form-control form-control-sm" id="sort" name="sort">
+                <option value="date_desc" {% if sort == 'date_desc' %}selected{% endif %}>Neueste zuerst</option>
+                <option value="date_asc" {% if sort == 'date_asc' %}selected{% endif %}>&#196;lteste zuerst</option>
+                <option value="title_asc" {% if sort == 'title_asc' %}selected{% endif %}>Titel (A&#8211;Z)</option>
+                <option value="title_desc" {% if sort == 'title_desc' %}selected{% endif %}>Titel (Z&#8211;A)</option>
+              </select>
             </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="form-group">
+              <label for="date_from">Datum von</label>
+              <input type="date" class="form-control form-control-sm" id="date_from" name="date_from"
+                     value="{{ date_from or '' }}">
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label for="date_to">Datum bis</label>
+              <input type="date" class="form-control form-control-sm" id="date_to" name="date_to"
+                     value="{{ date_to or '' }}">
+            </div>
+          </div>
+        </div>
+        <div class="text-right">
+          <a href="/news" class="btn btn-sm btn-outline-secondary mr-2">Zur&#252;cksetzen</a>
+          <button type="submit" class="btn btn-sm btn-primary">Filter anwenden</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if articles %}
+  <div class="result-count-bar">
+    <span class="count-text">
+      {% if total_articles %}
+      <strong>{{ total_articles }}</strong> Artikel gefunden
+      {% if search_term %} f&#252;r <em>&#8222;{{ search_term }}&#8220;</em>{% endif %}
+      {% endif %}
+    </span>
+    <span class="count-text">Seite {{ page }} von {{ total_pages }}</span>
+  </div>
+
+  <div class="search-results">
+    {% for article in articles %}
+    <div class="search-result"
+         data-url="{{ article.url }}"
+         data-title="{{ article.title | replace('"', '&quot;') }}">
+      <a href="{{ article.url }}" class="result-title" target="_blank" rel="noopener noreferrer">{{ article.title }}</a>
+      <div class="result-url">{{ article.url }}</div>
+      <div class="result-meta">
+        {% if article.date %}
+        <span>
+          <svg style="width:13px;height:13px;vertical-align:middle;margin-right:2px;" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22C6.47,22 2,17.5 2,12A10,10 0 0,1 12,2M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z"/>
+          </svg>
+          {{ article.date[:16] if article.date | length > 10 else article.date }}
+        </span>
         {% endif %}
+        {% if article.author and article.author != 'N/A' %}
+        <span>
+          <svg style="width:13px;height:13px;vertical-align:middle;margin-right:2px;" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+          </svg>
+          {{ article.author }}
+        </span>
+        {% endif %}
+        {% if article.category and article.category != 'N/A' %}
+        <span class="result-category">{{ article.category }}</span>
+        {% endif %}
+        {% if article.word_count %}
+        <span class="result-word-count">{{ article.word_count }}&nbsp;W&#246;rter</span>
+        {% endif %}
+      </div>
+      {% if article.keywords and article.keywords != 'N/A' %}
+      <div class="keyword-tags">
+        {% for kw in article.keywords.split(',') %}
+        {% set kw_stripped = kw.strip() %}
+        {% if kw_stripped %}
+        <a href="/news?search={{ kw_stripped | urlencode }}" class="keyword-tag">{{ kw_stripped }}</a>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
-    
-    <!-- Kontextmenü für Artikel -->
-    <div class="context-menu" id="articleContextMenu">
-        <div class="context-menu-item" id="previewMenuItem">
-            <svg style="width:16px;height:16px;vertical-align:middle;margin-right:8px;" viewBox="0 0 24 24">
-                <path fill="currentColor" d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z" />
-            </svg>
-            Artikel-Vorschau anzeigen
-        </div>
-    </div>
+    {% endfor %}
+  </div>
 
-    <!-- Artikel Vorschau Modal -->
-    <div class="modal fade" id="articlePreviewModal" tabindex="-1" role="dialog" aria-labelledby="articlePreviewModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="articlePreviewModalLabel">Artikel Vorschau</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Schließen">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <div id="articleContent" class="article-content">
-                        <div class="text-center py-5">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="sr-only">Lädt...</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <a id="fullArticleLink" href="#" target="_blank" class="btn btn-primary">Vollständigen Artikel öffnen</a>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Schließen</button>
-                </div>
+  <div class="pagination-container">
+    <nav aria-label="Seitennavigation">
+      <ul class="pagination">
+        {% if page > 1 %}
+        <li class="page-item">
+          <a class="page-link" href="{{ url_for('news_feed', page=page-1, search=search_term, category=category, author=author, date_from=date_from, date_to=date_to, sort=sort) }}">&laquo;</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><a class="page-link" href="#">&laquo;</a></li>
+        {% endif %}
+
+        {% if pagination_range[0] > 1 %}
+        <li class="page-item">
+          <a class="page-link" href="{{ url_for('news_feed', page=1, search=search_term, category=category, author=author, date_from=date_from, date_to=date_to, sort=sort) }}">1</a>
+        </li>
+        {% if pagination_range[0] > 2 %}
+        <li class="page-item disabled"><a class="page-link" href="#">&#8230;</a></li>
+        {% endif %}
+        {% endif %}
+
+        {% for p in pagination_range %}
+        <li class="page-item {% if p == page %}active{% endif %}">
+          <a class="page-link" href="{{ url_for('news_feed', page=p, search=search_term, category=category, author=author, date_from=date_from, date_to=date_to, sort=sort) }}">{{ p }}</a>
+        </li>
+        {% endfor %}
+
+        {% if pagination_range[-1] < total_pages %}
+        {% if pagination_range[-1] < total_pages - 1 %}
+        <li class="page-item disabled"><a class="page-link" href="#">&#8230;</a></li>
+        {% endif %}
+        <li class="page-item">
+          <a class="page-link" href="{{ url_for('news_feed', page=total_pages, search=search_term, category=category, author=author, date_from=date_from, date_to=date_to, sort=sort) }}">{{ total_pages }}</a>
+        </li>
+        {% endif %}
+
+        {% if page < total_pages %}
+        <li class="page-item">
+          <a class="page-link" href="{{ url_for('news_feed', page=page+1, search=search_term, category=category, author=author, date_from=date_from, date_to=date_to, sort=sort) }}">&raquo;</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><a class="page-link" href="#">&raquo;</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+    <div class="page-info">Seite {{ page }} von {{ total_pages }} &middot; {{ total_articles }} Artikel gesamt</div>
+  </div>
+
+  {% else %}
+  <div class="text-center py-5">
+    <svg style="width:64px;height:64px;color:#c5c8cc;margin-bottom:1rem;" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M15.5,12C18,12 20,14 20,16.5C20,17.38 19.75,18.21 19.31,18.9L22.39,22L21,23.39L17.88,20.32C17.19,20.75 16.37,21 15.5,21C13,21 11,19 11,16.5C11,14 13,12 15.5,12M15.5,14A2.5,2.5 0 0,0 13,16.5A2.5,2.5 0 0,0 15.5,19A2.5,2.5 0 0,0 18,16.5A2.5,2.5 0 0,0 15.5,14M5,3H19C20.11,3 21,3.89 21,5V13.03C20.5,12.23 19.81,11.54 19,11V5H5V19H9.5C9.81,19.75 10.26,20.42 10.81,21H5C3.89,21 3,20.11 3,19V5C3,3.89 3.89,3 5,3M7,7H17V9H7V7M7,11H12V13H7V11M7,15H9V17H7V15Z"/>
+    </svg>
+    <h5 class="mb-2">Keine Artikel gefunden</h5>
+    <p class="text-muted">Bitte passen Sie Ihre Suchparameter an oder probieren Sie andere Begriffe.</p>
+    <a href="/news" class="btn btn-outline-primary mt-1">Zur&#252;cksetzen</a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Context menu -->
+<div class="context-menu" id="articleContextMenu">
+  <div class="context-menu-item" id="previewMenuItem">
+    <svg style="width:15px;height:15px;" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/>
+    </svg>
+    Artikel-Vorschau
+  </div>
+  <div class="context-menu-item" id="openInTabMenuItem">
+    <svg style="width:15px;height:15px;" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z"/>
+    </svg>
+    In neuem Tab &#246;ffnen
+  </div>
+</div>
+
+<!-- Article preview modal -->
+<div class="modal fade" id="articlePreviewModal" tabindex="-1" role="dialog"
+     aria-labelledby="articlePreviewModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title" id="articlePreviewModalLabel" style="font-weight:500;color:#333;"></h6>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Schlie&#223;en">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="articleContent" class="article-content">
+          <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+              <span class="sr-only">L&#228;dt&#8230;</span>
             </div>
+            <p class="mt-2 text-muted small">Artikel wird geladen&#8230;</p>
+          </div>
         </div>
+      </div>
+      <div class="modal-footer">
+        <small id="previewSourceBadge" class="text-muted mr-auto"></small>
+        <a id="fullArticleLink" href="#" target="_blank" rel="noopener noreferrer"
+           class="btn btn-sm btn-primary">Vollst&#228;ndigen Artikel &#246;ffnen &#8599;</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+                data-dismiss="modal">Schlie&#223;en</button>
+      </div>
     </div>
+  </div>
+</div>
 
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<script>
+$(function () {
+    if (typeof marked !== 'undefined') {
+        marked.setOptions({ breaks: true, gfm: true });
+    }
 
-    <script>
-        $(document).ready(function() {
-            // Filter Toggle
-            $('#filterToggle').on('click', function() {
-                $('#filterContent').toggleClass('show');
-            });
-            
-            // Erweiterte Suche anzeigen, wenn Filter aktiv sind
-            if ('{{ category }}' || '{{ author }}' || '{{ date_from }}' || '{{ date_to }}' || '{{ sort }}' && '{{ sort }}' !== 'date_desc') {
-                $('#filterContent').addClass('show');
-            }
-            
-            // Variablen für das aktuelle Kontextmenü und den ausgewählten Artikel
-            let contextMenu = document.getElementById("articleContextMenu");
-            let selectedArticleUrl = "";
-            let selectedArticleTitle = "";
-            
-            // Click-Event auf dem Dokument schließt das Kontextmenü
-            document.addEventListener("click", function() {
-                contextMenu.style.display = "none";
-            });
-            
-            // Kontextmenü-Event für die Artikel-Items
-            $(".search-result").on("contextmenu", function(e) {
-                // Standard-Kontextmenü verhindern
-                e.preventDefault();
-                
-                // Artikelinformationen speichern
-                selectedArticleUrl = $(this).data("url");
-                selectedArticleTitle = $(this).data("title");
-                
-                // Kontextmenü an Mausposition anzeigen
-                contextMenu.style.display = "block";
-                contextMenu.style.left = e.pageX + "px";
-                contextMenu.style.top = e.pageY + "px";
-            });
-            
-            // Vorschau-Menüpunkt-Aktion
-            $("#previewMenuItem").on("click", function() {
-                // Kontextmenü ausblenden
-                contextMenu.style.display = "none";
-                
-                // Artikel-Vorschau anzeigen
-                showArticlePreview(selectedArticleUrl, selectedArticleTitle);
-            });
-            
-            function showArticlePreview(url, title) {
-                // Modal mit Ladeanimation öffnen
-                $('#articlePreviewModalLabel').text(title);
-                $('#fullArticleLink').attr('href', url);
-                $('#articleContent').html('<div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="sr-only">Lädt...</span></div></div>');
-                $('#articlePreviewModal').modal('show');
-                
-                // Artikel-Inhalt laden
-                fetch('/article_preview?url=' + encodeURIComponent(url))
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            $('#articleContent').html(data.content);
-                        } else {
-                            $('#articleContent').html('<div class="alert alert-danger">Fehler beim Laden des Artikels: ' + data.error + '</div>');
-                        }
-                    })
-                    .catch(error => {
-                        $('#articleContent').html('<div class="alert alert-danger">Fehler beim Laden des Artikels: ' + error + '</div>');
-                    });
-            }
-            
-            // Click-Event für die Artikel-Items (außer auf Links)
-            $(".search-result").on("click", function(e) {
-                // Nur ausführen, wenn nicht auf einen Link geklickt wurde
-                if (!$(e.target).is("a")) {
-                    e.preventDefault();
-                    window.open($(this).data("url"), "_blank");
+    var CONTEXT_MENU_WIDTH = 210;
+
+    // Filter toggle
+    $('#filterToggle').on('click', function () {
+        $('#filterContent').toggleClass('show');
+    });
+
+    // Auto-open if filters are active
+    var hasFilter = '{{ category }}' || '{{ author }}' || '{{ date_from }}' || '{{ date_to }}'
+                    || ('{{ sort }}' && '{{ sort }}' !== 'date_desc');
+    if (hasFilter) $('#filterContent').addClass('show');
+
+    // Context menu
+    var ctxMenu = document.getElementById('articleContextMenu');
+    var selUrl = '', selTitle = '';
+
+    document.addEventListener('click', function () { ctxMenu.style.display = 'none'; });
+
+    $(document).on('contextmenu', '.search-result', function (e) {
+        e.preventDefault();
+        selUrl   = $(this).data('url');
+        selTitle = $(this).data('title');
+        ctxMenu.style.display = 'block';
+        ctxMenu.style.left = Math.min(e.pageX, window.innerWidth - CONTEXT_MENU_WIDTH) + 'px';
+        ctxMenu.style.top  = e.pageY + 'px';
+    });
+
+    $('#previewMenuItem').on('click', function () {
+        ctxMenu.style.display = 'none';
+        showPreview(selUrl, selTitle);
+    });
+    $('#openInTabMenuItem').on('click', function () {
+        ctxMenu.style.display = 'none';
+        if (selUrl) window.open(selUrl, '_blank', 'noopener,noreferrer');
+    });
+
+    // Click on card (but not links/tags)
+    $(document).on('click', '.search-result', function (e) {
+        if (!$(e.target).is('a')) {
+            window.open($(this).data('url'), '_blank', 'noopener,noreferrer');
+        }
+    });
+
+    function showPreview(url, title) {
+        $('#articlePreviewModalLabel').text(title || 'Artikel-Vorschau');
+        $('#fullArticleLink').attr('href', url);
+        $('#previewSourceBadge').text('');
+        $('#articleContent').html(
+            '<div class="text-center py-5">' +
+            '<div class="spinner-border text-primary" role="status">' +
+            '<span class="sr-only">Lädt…</span></div>' +
+            '<p class="mt-2 text-muted small">Artikel wird geladen…</p></div>'
+        );
+        $('#articlePreviewModal').modal('show');
+
+        fetch('/article_preview?url=' + encodeURIComponent(url))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.success) {
+                    var content = data.content || '';
+                    // Render as markdown only when the server explicitly says so
+                    if (data.format === 'markdown' && typeof marked !== 'undefined') {
+                        content = marked.parse(content);
+                    }
+                    $('#articleContent').html(content);
+                    if (data.source) {
+                        $('#previewSourceBadge').text('Quelle: ' + data.source);
+                    }
+                } else {
+                    $('#articleContent').html(
+                        '<div class="alert alert-warning"><strong>Vorschau nicht verfügbar:</strong> ' +
+                        (data.error || 'Unbekannter Fehler') + '</div>' +
+                        '<p class="text-center"><a href="' + url +
+                        '" target="_blank" rel="noopener noreferrer" class="btn btn-primary">' +
+                        'Artikel direkt öffnen ↗</a></p>'
+                    );
                 }
+            })
+            .catch(function (err) {
+                $('#articleContent').html(
+                    '<div class="alert alert-danger">Fehler beim Laden: ' + err + '</div>'
+                );
             });
-        });
-    </script>
+    }
+});
+</script>
 </body>
 </html>
