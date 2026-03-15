@@ -2,11 +2,28 @@
 <html lang="de">
   <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title>SQL-Abfragen Ausführen</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+      .top-nav { background: #fff; border-bottom: 1px solid #e8eaed; padding: 0.5rem 0; margin-bottom: 1.5rem; }
+      .top-nav a { color: #5f6368; font-size: 0.85rem; padding: 0.4rem 0.8rem; text-decoration: none; border-radius: 4px; transition: background 0.15s; }
+      .top-nav a:hover { background: #f1f3f4; color: #333; }
+      .top-nav a.active { color: #1a73e8; font-weight: 500; }
+    </style>
   </head>
   <body>
-    <div class="container mt-4">
+    <nav class="top-nav">
+      <div class="container d-flex align-items-center justify-content-between">
+        <div>
+          <a href="/news">&#128240; Heise News</a>
+          <a href="/query" class="active">&#128269; SQL-Abfragen</a>
+          <a href="/export_db">&#11015; Export (.db)</a>
+        </div>
+        <small class="text-muted d-none d-md-block">Heise News Mining</small>
+      </div>
+    </nav>
+    <div class="container mt-2">
       <h1 class="mb-4">SQL-Abfragen Ausführen</h1>
       <form method="post" action="/query" enctype="multipart/form-data">
         <div class="form-group">

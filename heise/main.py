@@ -4,7 +4,8 @@ Crawling script for Heise News.
 • Ensures that an "articles" table (with dynamic columns for alternative URLs)
   and a "crawl_state" table exist.
 • Loads and saves the progress (year, month, and article index) in the database.
-• Extracts article details using BeautifulSoup and inserts (or updates) them into the database.
+• Extracts article details using BeautifulSoup (with optional Cloudflare Browser
+  Rendering crawl endpoint) and inserts (or updates) them into the database.
 • Outputs colorful status messages (including date and time) during the crawl.
 • Sends an email via send_notification in case of errors.
 """
@@ -126,6 +127,43 @@ def update_crawl_state(conn, year, month, article_index):
     conn.commit()
 
 # ----------------------------------------------------------------
+# CLOUDFLARE BROWSER RENDERING HELPER
+# ----------------------------------------------------------------
+def fetch_page_via_cloudflare(url):
+    """
+    Fetches page HTML using the Cloudflare Browser Rendering crawl endpoint.
+    Returns a BeautifulSoup object if successful, or None to fall back to
+    a plain requests.get call.
+    Requires CF_API_TOKEN and CF_ACCOUNT_ID environment variables.
+    """
+    cf_token = os.getenv('CF_API_TOKEN')
+    cf_account = os.getenv('CF_ACCOUNT_ID')
+    if not cf_token or not cf_account:
+        return None
+    try:
+        api_url = f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/browser-rendering/crawl"
+        headers = {
+            "Authorization": f"Bearer {cf_token}",
+            "Content-Type": "application/json"
+        }
+        payload = {"url": url, "options": {"waitUntil": "networkidle2"}}
+        resp = requests.post(api_url, headers=headers, json=payload, timeout=30)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        if not data.get("success"):
+            return None
+        result = data.get("result", {})
+        # Prefer the raw HTML if returned, otherwise use rendered HTML
+        raw_html = result.get("html") or result.get("content") or ""
+        if not raw_html:
+            return None
+        return BeautifulSoup(raw_html, 'html.parser')
+    except Exception:
+        return None
+
+
+# ----------------------------------------------------------------
 # ARTICLE PROCESSING FUNCTIONS
 # ----------------------------------------------------------------
 def get_article_details(url):
@@ -134,10 +172,17 @@ def get_article_details(url):
       - Author(s), category, keywords, word count,
       - Editor abbreviation, site name,
       - Alternative links (as a dictionary, keyed by language)
+
+    Uses the Cloudflare Browser Rendering crawl endpoint when credentials are
+    configured (CF_API_TOKEN / CF_ACCOUNT_ID), and falls back to a plain
+    requests.get + BeautifulSoup parse otherwise.
+
     Returns a tuple.
     """
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
+    soup = fetch_page_via_cloudflare(url)
+    if soup is None:
+        response = requests.get(url)
+        soup = BeautifulSoup(response.content, 'html.parser')
 
     # Determine editor abbreviation
     editor_abbr = "N/A"
